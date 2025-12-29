@@ -44,6 +44,8 @@ module xylkit::streams {
     const E_INVALID_STREAMS_HISTORY: u64 = 7;
     /// History entry has both hash and receivers (must have one or the other)
     const E_ENTRY_WITH_HASH_AND_RECEIVERS: u64 = 8;
+    /// Timestamp is before the last streams update
+    const E_TIMESTAMP_BEFORE_UPDATE: u64 = 9;
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              STORAGE & TYPES
@@ -635,7 +637,176 @@ module xylkit::streams {
     // ═══════════════════════════════════════════════════════════════════════════════
     //                        BALANCE & MAX END CALCULATION
     // ═══════════════════════════════════════════════════════════════════════════════
-    // balance_at, calc_balance, calc_max_end, is_balance_enough
+
+    /// Returns the account's streams balance at a given timestamp
+    /// `token_type`: The token type being streamed
+    /// `account_id`: The account ID
+    /// `curr_receivers`: Current receivers list (must match stored hash)
+    /// `timestamp`: The timestamp to calculate balance at (must be >= update_time)
+    public fun balance_at(
+        token_type: std::type_info::TypeInfo,
+        account_id: u256,
+        curr_receivers: &vector<StreamReceiver>,
+        timestamp: u64
+    ): u128 acquires StreamsStorage {
+        let storage = borrow_global<StreamsStorage>(@xylkit);
+        let state_key = StreamsStateKey { token_type, account_id };
+
+        // Non-existent account = 0 balance
+        if (!storage.states.contains(state_key)) {
+            return 0
+        };
+
+        let state = storage.states.borrow(state_key);
+        assert!(timestamp >= state.update_time, E_TIMESTAMP_BEFORE_UPDATE);
+        verify_streams_receivers(curr_receivers, state);
+
+        calc_balance(
+            state.balance,
+            state.update_time,
+            state.max_end,
+            curr_receivers,
+            timestamp
+        )
+    }
+
+    /// Calculates the streams balance at a given timestamp
+    /// Subtracts all amounts streamed from last_update to timestamp
+    /// `last_balance`: Balance snapshot at last update
+    /// `last_update`: Timestamp of last update
+    /// `max_end`: Maximum end time of streaming
+    /// `receivers`: Current receivers list
+    /// `timestamp`: Target timestamp for balance calculation
+    fun calc_balance(
+        last_balance: u128,
+        last_update: u64,
+        max_end: u64,
+        receivers: &vector<StreamReceiver>,
+        timestamp: u64
+    ): u128 {
+        let balance = (last_balance as u256);
+        let len = receivers.length();
+        let i = 0;
+
+        while (i < len) {
+            let receiver = receivers.borrow(i);
+            let (start, end) =
+                stream_range(
+                    &receiver.config,
+                    last_update,
+                    max_end,
+                    last_update,
+                    timestamp
+                );
+            let spent = streamed_amt(receiver.config.amt_per_sec, start, end);
+            balance -= spent;
+            i += 1;
+        };
+
+        (balance as u128)
+    }
+
+    /// Calculates the maximum end time when all streams stop due to funds running out
+    /// Uses binary search between current timestamp and max u32
+    /// `balance`: The balance when streaming starts
+    /// `receivers`: The list of stream receivers
+    /// `hint1`: Optional hint for binary search optimization (pass 0 to ignore)
+    /// `hint2`: Optional hint for binary search optimization (pass 0 to ignore)
+    public fun calc_max_end(
+        balance: u128,
+        receivers: &vector<StreamReceiver>,
+        hint1: u64,
+        hint2: u64
+    ): u64 acquires StreamsStorage {
+        let configs = build_configs(receivers);
+        let configs_len = configs.length();
+
+        // Using better variable names per Notes.md
+        let min_guaranteed_end = curr_timestamp();
+
+        // No configs or zero balance = end now
+        if (configs_len == 0 || balance == 0) {
+            return min_guaranteed_end
+        };
+
+        let max_possible_end = MAX_U64;
+        // Balance covers everything forever
+        if (is_balance_enough(balance, &configs, max_possible_end)) {
+            return max_possible_end
+        };
+
+        // Apply hints to narrow search range
+        let enough_end = min_guaranteed_end;
+        let not_enough_end = max_possible_end;
+
+        if (hint1 > enough_end && hint1 < not_enough_end) {
+            if (is_balance_enough(balance, &configs, hint1)) {
+                enough_end = hint1;
+            } else {
+                not_enough_end = hint1;
+            };
+        };
+
+        if (hint2 > enough_end && hint2 < not_enough_end) {
+            if (is_balance_enough(balance, &configs, hint2)) {
+                enough_end = hint2;
+            } else {
+                not_enough_end = hint2;
+            };
+        };
+
+        // Binary search for exact end time
+        loop {
+            let mid = (enough_end + not_enough_end) / 2;
+            if (mid == enough_end) {
+                return mid
+            };
+            if (is_balance_enough(balance, &configs, mid)) {
+                enough_end = mid;
+            } else {
+                not_enough_end = mid;
+            };
+        }
+    }
+
+    /// Checks if balance is enough to cover all streams until max_end
+    /// `balance`: The starting balance
+    /// `configs`: Preprocessed stream configurations
+    /// `max_end`: The end time to check against
+    fun is_balance_enough(
+        balance: u128, configs: &vector<ProcessedConfig>, max_end: u64
+    ): bool {
+        let spent: u256 = 0;
+        let balance_u256 = (balance as u256);
+        let len = configs.length();
+        let i = 0;
+
+        while (i < len) {
+            let (amt_per_sec, start, end) = get_config(configs, i);
+
+            // Stream hasn't started yet at max_end
+            if (max_end <= start) {
+                i += 1;
+                continue
+            };
+
+            // Cap end to max_end
+            let capped_end = if (end > max_end) {
+                max_end
+            } else { end };
+
+            spent += streamed_amt(amt_per_sec, start, capped_end);
+
+            // Early exit if already over budget
+            if (spent > balance_u256) {
+                return false
+            };
+
+            i += 1;
+        };
+
+        true
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                            RECEIVING STREAMS

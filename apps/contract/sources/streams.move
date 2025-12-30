@@ -277,6 +277,34 @@ module xylkit::streams {
         else { b }
     }
 
+    /// Helper to process cycles and accumulate received amounts
+    fun process_cycles(
+        state: &StreamsState,
+        from_cycle: u64,
+        to_cycle: u64,
+        received_amt: u128,
+        amt_per_cycle: i128
+    ): (u128, i128) {
+        let cycle = from_cycle;
+        let acc_received = received_amt;
+        let acc_rate = amt_per_cycle;
+
+        while (cycle < to_cycle) {
+            if (state.amt_deltas.contains(cycle)) {
+                let delta = state.amt_deltas.borrow(cycle);
+                acc_rate += delta.this_cycle;
+                acc_received +=(acc_rate as u128);
+                acc_rate += delta.next_cycle;
+            } else {
+                // No delta for this cycle, just accumulate current rate
+                acc_received +=(acc_rate as u128);
+            };
+            cycle += 1;
+        };
+
+        (acc_received, acc_rate)
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════════
     //                         HASHING & CONFIGURATION
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -811,11 +839,522 @@ module xylkit::streams {
     // ═══════════════════════════════════════════════════════════════════════════════
     //                            RECEIVING STREAMS
     // ═══════════════════════════════════════════════════════════════════════════════
-    // receive_streams, receive_streams_result, receivable_streams_cycles, receivable_streams_cycles_range
+
+    /// Returns (from_cycle, to_cycle) range for receivable streams
+    fun receivable_streams_cycles_range(
+        token_type: std::type_info::TypeInfo, account_id: u256
+    ): (u64, u64) acquires StreamsStorage {
+        let storage = borrow_global<StreamsStorage>(@xylkit);
+        let state_key = StreamsStateKey { token_type, account_id };
+
+        if (!storage.states.contains(state_key)) {
+            return (0, 0)
+        };
+
+        let from_cycle = storage.states.borrow(state_key).next_receivable_cycle;
+        let to_cycle = cycle_of(curr_timestamp());
+
+        // Nothing to receive if from_cycle is 0 or ahead of current cycle
+        if (from_cycle == 0 || to_cycle < from_cycle) {
+            (from_cycle, from_cycle)
+        } else {
+            (from_cycle, to_cycle)
+        }
+    }
+
+    /// Calculate effects of calling `receive_streams` with the given parameters
+    /// `token_type`: The token type being streamed
+    /// `account_id`: The account ID
+    /// `max_cycles`: Maximum number of cycles to process
+    /// Returns: (received_amt, receivable_cycles, from_cycle, to_cycle, amt_per_cycle)
+    ///   - received_amt: The amount that would be received
+    ///   - receivable_cycles: Cycles still receivable after the call
+    ///   - from_cycle: Starting cycle of reception
+    ///   - to_cycle: Ending cycle of reception
+    ///   - amt_per_cycle: Running amount per cycle at to_cycle (for delta adjustment)
+    public fun receive_streams_result(
+        token_type: std::type_info::TypeInfo, account_id: u256, max_cycles: u64
+    ): (u128, u64, u64, u64, i128) acquires StreamsStorage {
+        let (from_cycle, to_cycle_raw) =
+            receivable_streams_cycles_range(token_type, account_id);
+
+        // Cap cycles to max_cycles
+        let (receivable_cycles, to_cycle) =
+            if (to_cycle_raw - from_cycle > max_cycles) {
+                let remaining = to_cycle_raw - from_cycle - max_cycles;
+                (remaining, to_cycle_raw - remaining)
+            } else {
+                (0, to_cycle_raw)
+            };
+
+        let storage = borrow_global<StreamsStorage>(@xylkit);
+        let state_key = StreamsStateKey { token_type, account_id };
+
+        let received_amt: u128 = 0;
+        let amt_per_cycle: i128 = 0;
+
+        // Only process if state exists and there are cycles to process
+        let (final_received_amt, final_amt_per_cycle) =
+            if (storage.states.contains(state_key) && from_cycle < to_cycle) {
+                let state = storage.states.borrow(state_key);
+                process_cycles(
+                    state,
+                    from_cycle,
+                    to_cycle,
+                    received_amt,
+                    amt_per_cycle
+                )
+            } else {
+                (received_amt, amt_per_cycle)
+            };
+
+        (
+            final_received_amt,
+            receivable_cycles,
+            from_cycle,
+            to_cycle,
+            final_amt_per_cycle
+        )
+    }
+
+    /// Receive streams from unreceived cycles of the account.
+    /// Received streams cycles won't need to be analyzed ever again.\
+    /// `token_type`: The token type being streamed\
+    /// `account_id`: The account ID\
+    /// `max_cycles`: Maximum number of cycles to process
+    ///   - Low value: cheaper but may not cover many cycles
+    ///   - High value: may be too expensive for single transaction
+    ///
+    /// Returns: `received_amt` - The amount received
+    public(friend) fun receive_streams(
+        token_type: std::type_info::TypeInfo, account_id: u256, max_cycles: u64
+    ): u128 acquires StreamsStorage {
+        let (received_amt, _receivable_cycles, from_cycle, to_cycle, final_amt_per_cycle) =
+            receive_streams_result(token_type, account_id, max_cycles);
+
+        if (from_cycle != to_cycle) {
+            let storage = borrow_global_mut<StreamsStorage>(@xylkit);
+            let state_key = StreamsStateKey { token_type, account_id };
+
+            ensure_state_exists(&mut storage.states, state_key);
+            let state = storage.states.borrow_mut(state_key);
+
+            // Update next receivable cycle
+            state.next_receivable_cycle = to_cycle;
+
+            // Delete processed cycle deltas
+            let cycle = from_cycle;
+            while (cycle < to_cycle) {
+                if (state.amt_deltas.contains(cycle)) {
+                    state.amt_deltas.remove(cycle);
+                };
+                cycle += 1;
+            };
+
+            // The next cycle delta must be relative to the last received cycle (which got zeroed)
+            // In other words, the next cycle delta must be an absolute value
+            if (final_amt_per_cycle != 0) {
+                if (!state.amt_deltas.contains(to_cycle)) {
+                    state.amt_deltas.add(
+                        to_cycle, AmtDelta { this_cycle: 0, next_cycle: 0 }
+                    );
+                };
+                let delta = state.amt_deltas.borrow_mut(to_cycle);
+                delta.this_cycle += final_amt_per_cycle;
+            };
+        };
+
+        received_amt
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                          SQUEEZING & SET STREAMS
     // ═══════════════════════════════════════════════════════════════════════════════
-    // squeeze_streams, squeeze_streams_result, squeezed_amt, set_streams
+
+    /// Squeeze streams from the currently running cycle from a single sender.\
+    /// It doesn't receive streams from finished cycles - use `receive_streams` for that.\
+    /// Squeezed funds won't be received in subsequent calls to `squeeze_streams` or `receive_streams`.\
+    /// Only funds streamed before current timestamp can be squeezed.
+    ///
+    /// `account_id`: The ID of the account receiving streams to squeeze funds for\
+    /// `token_type`: The token type being streamed\
+    /// `sender_id`: The ID of the streaming account to squeeze funds from\
+    /// `history_hash`: The sender's history hash valid right before `streams_history`\
+    /// `streams_history`: The sequence of the sender's streams configurations
+    ///
+    /// Returns: `amt` - The squeezed amount
+    public(friend) fun squeeze_streams(
+        account_id: u256,
+        token_type: std::type_info::TypeInfo,
+        sender_id: u256,
+        history_hash: vector<u8>,
+        streams_history: &vector<StreamsHistory>
+    ): u128 acquires StreamsStorage {
+        let (amt, squeezed_indexes, _history_hashes, curr_cycle_configs) =
+            squeeze_streams_result(
+                account_id,
+                token_type,
+                sender_id,
+                history_hash,
+                streams_history
+            );
+
+        let storage = borrow_global_mut<StreamsStorage>(@xylkit);
+        let state_key = StreamsStateKey { token_type, account_id };
+        ensure_state_exists(&mut storage.states, state_key);
+        let state = storage.states.borrow_mut(state_key);
+
+        let squeezed_len = squeezed_indexes.length();
+        let i = 0;
+        while (i < squeezed_len) {
+            let idx = squeezed_indexes[i];
+            let config_index = curr_cycle_configs - idx;
+            let squeezed_key = NextSqueezedKey {
+                sender_account_id: sender_id,
+                config_index
+            };
+            if (state.next_squeezed.contains(squeezed_key)) {
+                *state.next_squeezed.borrow_mut(squeezed_key) = curr_timestamp();
+            } else {
+                state.next_squeezed.add(squeezed_key, curr_timestamp());
+            };
+            i += 1;
+        };
+
+        // Apply negative delta to remove squeezed amount from current cycle
+        // This prevents double-receiving via receive_streams
+        if (amt > 0) {
+            let cycle_start = curr_cycle_start();
+            let neg_amt_per_sec = 0 - ((amt as i256) * (AMT_PER_SEC_MULTIPLIER as i256));
+            add_delta_range(
+                state,
+                cycle_start,
+                cycle_start + 1,
+                neg_amt_per_sec
+            );
+        };
+
+        amt
+    }
+
+    /// Calculate effects of calling `squeeze_streams` with the given parameters.
+    ///
+    /// `account_id`: The ID of the account receiving streams to squeeze funds for
+    /// `token_type`: The token type being streamed
+    /// `sender_id`: The ID of the streaming account to squeeze funds from
+    /// `history_hash`: The sender's history hash valid right before `streams_history`
+    /// `streams_history`: The sequence of the sender's streams configurations
+    ///
+    /// Returns:
+    ///   - `amt`: The squeezed amount
+    ///   - `squeezed_indexes`: Reverse indexes of squeezed history entries (oldest to newest)
+    ///   - `history_hashes`: History hashes valid for squeezing each entry
+    ///   - `curr_cycle_configs`: Number of sender's configs seen in current cycle
+    public fun squeeze_streams_result(
+        account_id: u256,
+        token_type: std::type_info::TypeInfo,
+        sender_id: u256,
+        history_hash: vector<u8>,
+        streams_history: &vector<StreamsHistory>
+    ): (u128, vector<u64>, vector<vector<u8>>, u64) acquires StreamsStorage {
+        let storage = borrow_global<StreamsStorage>(@xylkit);
+        let sender_key = StreamsStateKey { token_type, account_id: sender_id };
+
+        // Get sender's final history hash for verification
+        let final_history_hash =
+            if (storage.states.contains(sender_key)) {
+                storage.states.borrow(sender_key).streams_history_hash
+            } else {
+                vector::empty<u8>()
+            };
+
+        // Verify the history chain
+        let history_hashes =
+            verify_streams_history(
+                history_hash,
+                streams_history,
+                &final_history_hash
+            );
+
+        // Determine how many configs to check in current cycle
+        // If last update was not in current cycle, only the latest entry matters
+        let curr_cycle_configs =
+            if (storage.states.contains(sender_key)
+                && storage.states.borrow(sender_key).update_time >= curr_cycle_start()) {
+                storage.states.borrow(sender_key).curr_cycle_configs
+            } else { 1 };
+
+        // Get receiver's next_squeezed mapping
+        let receiver_key = StreamsStateKey { token_type, account_id };
+
+        let amt: u128 = 0;
+        let squeezed_indexes = vector::empty<u64>();
+        let squeeze_end_cap = curr_timestamp();
+        let history_len = streams_history.length();
+
+        // Process history entries from newest to oldest (up to curr_cycle_configs)
+        let i: u64 = 1;
+        while (i <= history_len && i <= curr_cycle_configs) {
+            let entry_idx = history_len - i;
+            let entry = streams_history.borrow(entry_idx);
+
+            // Skip entries with no receivers
+            if (entry.receivers.length() != 0) {
+                // Get next_squeezed timestamp (0 if never squeezed)
+                let next_squeezed_ts =
+                    if (storage.states.contains(receiver_key)) {
+                        let state = storage.states.borrow(receiver_key);
+                        let key =
+                            NextSqueezedKey {
+                                sender_account_id: sender_id,
+                                config_index: curr_cycle_configs - i
+                            };
+                        if (state.next_squeezed.contains(key)) {
+                            *state.next_squeezed.borrow(key)
+                        } else { 0 }
+                    } else { 0 };
+
+                // squeeze_start_cap = max(next_squeezed, curr_cycle_start, entry.update_time)
+                let squeeze_start_cap =
+                    max_u64(
+                        max_u64(next_squeezed_ts, curr_cycle_start()),
+                        entry.update_time
+                    );
+
+                // Only squeeze if there's a valid time range
+                if (squeeze_start_cap < squeeze_end_cap) {
+                    squeezed_indexes.push_back(i);
+                    amt += squeezed_amt(
+                        account_id,
+                        entry,
+                        squeeze_start_cap,
+                        squeeze_end_cap
+                    );
+                };
+            };
+
+            // Next entry's end cap is this entry's update_time
+            squeeze_end_cap = entry.update_time;
+            i += 1;
+        };
+
+        // Reverse squeezed_indexes to be oldest-to-newest
+        let reversed = vector::empty<u64>();
+        let j = squeezed_indexes.length();
+        while (j > 0) {
+            j -= 1;
+            reversed.push_back(squeezed_indexes[j]);
+        };
+
+        (amt, reversed, history_hashes, curr_cycle_configs)
+    }
+
+    /// Calculate the amount squeezable by an account from a single streams history entry.\
+    /// `account_id`: The ID of the account to squeeze streams for\
+    /// `history_entry`: The squeezed history entry\
+    /// `squeeze_start_cap`: The squeezed time range start\
+    /// `squeeze_end_cap`: The squeezed time range end
+    ///
+    /// Returns: `squeezed_amt` - The squeezed amount
+    fun squeezed_amt(
+        account_id: u256,
+        history_entry: &StreamsHistory,
+        squeeze_start_cap: u64,
+        squeeze_end_cap: u64
+    ): u128 {
+        let receivers = &history_entry.receivers;
+        let receivers_len = receivers.length();
+
+        // Binary search for the first occurrence of account_id
+        let idx: u64 = 0;
+        let idx_cap = receivers_len;
+        while (idx < idx_cap) {
+            let idx_mid = (idx + idx_cap) / 2;
+            if (receivers.borrow(idx_mid).account_id < account_id) {
+                idx = idx_mid + 1;
+            } else {
+                idx_cap = idx_mid;
+            };
+        };
+
+        let update_time = history_entry.update_time;
+        let max_end = history_entry.max_end;
+        let amt: u256 = 0;
+
+        // Sum up all streams to this account_id
+        while (idx < receivers_len) {
+            let receiver = receivers.borrow(idx);
+            if (receiver.account_id != account_id) { break };
+
+            let (start, end) =
+                stream_range(
+                    &receiver.config,
+                    update_time,
+                    max_end,
+                    squeeze_start_cap,
+                    squeeze_end_cap
+                );
+            amt += streamed_amt(receiver.config.amt_per_sec, start, end);
+            idx += 1;
+        };
+
+        (amt as u128)
+    }
+
+    /// Sets the account's streams configuration.\
+    /// Main entry point to configure streams.
+    ///
+    /// `account_id`: The account ID\
+    /// `token_type`: The token type being streamed\
+    /// `curr_receivers`: Current streams receivers list (must match stored hash, empty if first update)\
+    /// `balance_delta`: Balance change (positive to add funds, negative to withdraw)\
+    /// `new_receivers`: New receivers list (must be sorted, deduplicated, no zero amt_per_sec)\
+    /// `max_end_hint1`: Optional hint for binary search optimization (pass 0 to ignore)\
+    /// `max_end_hint2`: Optional hint for binary search optimization (pass 0 to ignore)
+    ///
+    /// Returns: `real_balance_delta` - The actually applied balance change
+    public(friend) fun set_streams(
+        account_id: u256,
+        token_type: std::type_info::TypeInfo,
+        curr_receivers: &vector<StreamReceiver>,
+        balance_delta: i128,
+        new_receivers: &vector<StreamReceiver>,
+        max_end_hint1: u64,
+        max_end_hint2: u64
+    ): i128 acquires StreamsStorage {
+        let storage = borrow_global_mut<StreamsStorage>(@xylkit);
+        let state_key = StreamsStateKey { token_type, account_id };
+        ensure_state_exists(&mut storage.states, state_key);
+
+        // Verify current receivers match stored hash
+        {
+            let state = storage.states.borrow(state_key);
+            verify_streams_receivers(curr_receivers, state);
+        };
+
+        // Get current state values
+        let (
+            last_update,
+            curr_max_end,
+            stored_balance,
+            old_history_hash,
+            old_curr_cycle_configs
+        ) = {
+            let state = storage.states.borrow(state_key);
+            (
+                state.update_time,
+                state.max_end,
+                state.balance,
+                state.streams_history_hash,
+                state.curr_cycle_configs
+            )
+        };
+
+        // Calculate current balance
+        let curr_balance =
+            calc_balance(
+                stored_balance,
+                last_update,
+                curr_max_end,
+                curr_receivers,
+                curr_timestamp()
+            );
+
+        // Cap balance_delta at withdrawal of entire balance
+        let real_balance_delta = balance_delta;
+        if (real_balance_delta < 0 - (curr_balance as i128)) {
+            real_balance_delta = 0 - (curr_balance as i128);
+        };
+
+        // Calculate new balance
+        let new_balance =
+            if (real_balance_delta >= 0) {
+                curr_balance + (real_balance_delta as u128)
+            } else {
+                curr_balance - ((0 - real_balance_delta) as u128)
+            };
+
+        // Calculate new max_end
+        let new_max_end =
+            calc_max_end(
+                new_balance,
+                new_receivers,
+                max_end_hint1,
+                max_end_hint2
+            );
+
+        // Update receiver states (apply deltas)
+        update_receiver_states(
+            &mut storage.states,
+            token_type,
+            curr_receivers,
+            last_update,
+            curr_max_end,
+            new_receivers,
+            new_max_end
+        );
+
+        // Update sender state
+        let state = storage.states.borrow_mut(state_key);
+        let curr_ts = curr_timestamp();
+
+        state.update_time = curr_ts;
+        state.max_end = new_max_end;
+        state.balance = new_balance;
+
+        // Update curr_cycle_configs
+        // If history exists and we crossed a cycle boundary, reset to 2
+        // Otherwise increment
+        if (old_history_hash.length() != 0
+            && cycle_of(last_update) != cycle_of(curr_ts)) {
+            state.curr_cycle_configs = 2;
+        } else {
+            state.curr_cycle_configs = old_curr_cycle_configs + 1;
+        };
+
+        // Update streams hash and history hash
+        let new_streams_hash = hash_streams(new_receivers);
+        state.streams_history_hash = hash_streams_history(
+            &old_history_hash,
+            &new_streams_hash,
+            curr_ts,
+            new_max_end
+        );
+
+        // Update streams_hash if changed
+        if (new_streams_hash != state.streams_hash) {
+            state.streams_hash = new_streams_hash;
+        };
+
+        real_balance_delta
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    //                              VIEW FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Returns the current streams state for an account
+    /// `account_id`: The account ID
+    /// `token_type`: The token type
+    /// Returns: (streams_hash, streams_history_hash, update_time, balance, max_end)
+    public fun streams_state(
+        account_id: u256, token_type: std::type_info::TypeInfo
+    ): (vector<u8>, vector<u8>, u64, u128, u64) acquires StreamsStorage {
+        let storage = borrow_global<StreamsStorage>(@xylkit);
+        let state_key = StreamsStateKey { token_type, account_id };
+
+        if (!storage.states.contains(state_key)) {
+            return (vector::empty<u8>(), vector::empty<u8>(), 0, 0, 0)
+        };
+
+        let state = storage.states.borrow(state_key);
+        (
+            state.streams_hash,
+            state.streams_history_hash,
+            state.update_time,
+            state.balance,
+            state.max_end
+        )
+    }
 }
 

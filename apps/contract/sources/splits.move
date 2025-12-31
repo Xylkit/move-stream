@@ -19,11 +19,17 @@ module xylkit::splits {
     //                              ERROR CODES
     // ═══════════════════════════════════════════════════════════════════════════════
 
+    /// Too many splits receivers (max 200)
     const E_TOO_MANY_SPLITS_RECEIVERS: u64 = 1;
+    /// Splits receiver weight is zero
     const E_SPLITS_RECEIVER_WEIGHT_ZERO: u64 = 2;
+    /// Splits receivers not sorted by account_id
     const E_SPLITS_RECEIVERS_NOT_SORTED: u64 = 3;
+    /// Sum of splits weights exceeds TOTAL_SPLITS_WEIGHT
     const E_SPLITS_WEIGHTS_SUM_TOO_HIGH: u64 = 4;
+    /// Provided receivers don't match stored splits hash
     const E_INVALID_CURRENT_SPLITS_RECEIVERS: u64 = 5;
+    /// Storage already initialized
     const E_ALREADY_INITIALIZED: u64 = 6;
 
     // ═══════════════════════════════════════════════════════════════════════════════

@@ -9,8 +9,7 @@ module xylkit::streams {
     friend xylkit::drips;
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    //                              CONSTANTS
-    // ═══════════════════════════════════════════════════════════════════════════════
+     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Maximum number of streams receivers of a single account
     const MAX_STREAMS_RECEIVERS: u64 = 100;
@@ -1334,8 +1333,10 @@ module xylkit::streams {
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Returns the current streams state for an account
-    /// `account_id`: The account ID
+    /// 
+    /// `account_id`: The account ID\
     /// `token_type`: The token type
+    /// 
     /// Returns: (streams_hash, streams_history_hash, update_time, balance, max_end)
     public fun streams_state(
         account_id: u256, token_type: std::type_info::TypeInfo

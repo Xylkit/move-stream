@@ -9,7 +9,7 @@ module xylkit::streams {
     friend xylkit::drips;
 
     // ═══════════════════════════════════════════════════════════════════════════════
-     // ═══════════════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Maximum number of streams receivers of a single account
     const MAX_STREAMS_RECEIVERS: u64 = 100;
@@ -134,12 +134,14 @@ module xylkit::streams {
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Initialize streams storage at @xylkit with configurable cycle length
+    ///
     /// `cycle_secs`: Length of each cycle in seconds (must be > 1)
     ///   - Low value: funds available faster, but more cycles to process
     ///   - High value: cheaper receiving, but longer fund lock-up
-    public entry fun initialize(account: &signer, cycle_secs: u64) {
+    ///
+    /// Called by drips::init_module
+    public(friend) fun initialize(account: &signer, cycle_secs: u64) {
         let addr = std::signer::address_of(account);
-        assert!(addr == @xylkit, 0);
         assert!(!exists<StreamsStorage>(addr), E_ALREADY_INITIALIZED);
         assert!(cycle_secs > 1, E_CYCLE_SECS_TOO_LOW);
 
@@ -839,6 +841,18 @@ module xylkit::streams {
     //                            RECEIVING STREAMS
     // ═══════════════════════════════════════════════════════════════════════════════
 
+    /// Returns the number of cycles from which streams can be collected.
+    /// Useful to detect if there are too many cycles to analyze in a single transaction.
+    public fun receivable_streams_cycles(
+        account_id: u256, token_type: std::type_info::TypeInfo
+    ): u64 acquires StreamsStorage {
+        let (from_cycle, to_cycle) =
+            receivable_streams_cycles_range(token_type, account_id);
+        if (to_cycle > from_cycle) {
+            to_cycle - from_cycle
+        } else { 0 }
+    }
+
     /// Returns (from_cycle, to_cycle) range for receivable streams
     fun receivable_streams_cycles_range(
         token_type: std::type_info::TypeInfo, account_id: u256
@@ -1333,10 +1347,10 @@ module xylkit::streams {
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Returns the current streams state for an account
-    /// 
+    ///
     /// `account_id`: The account ID\
     /// `token_type`: The token type
-    /// 
+    ///
     /// Returns: (streams_hash, streams_history_hash, update_time, balance, max_end)
     public fun streams_state(
         account_id: u256, token_type: std::type_info::TypeInfo

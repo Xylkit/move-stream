@@ -70,11 +70,10 @@ module xylkit::splits {
     //                              INITIALIZATION
     // ═══════════════════════════════════════════════════════════════════════════════
 
-    /// Initialize splits storage at @xylkit
-    /// Must be called by the xylkit account before any splits operations
-    public entry fun initialize(account: &signer) {
+    /// Initialize splits storage at @xylkit\
+    /// Called by drips::init_module
+    public(friend) fun initialize(account: &signer) {
         let addr = std::signer::address_of(account);
-        assert!(addr == @xylkit, 0);
         assert!(!exists<SplitsStorage>(addr), E_ALREADY_INITIALIZED);
 
         move_to(account, SplitsStorage { states: smart_table::new() });
@@ -207,7 +206,7 @@ module xylkit::splits {
     /// Gives funds from the account to the receiver.
     /// The receiver can split and collect them immediately.
     /// Adds the amount directly to the receiver's splittable balance.
-    /// 
+    ///
     /// `account_id`: The giving account ID (for event tracking)
     /// `receiver`: The receiver account ID\
     /// `token_type`: The token type\
@@ -236,9 +235,7 @@ module xylkit::splits {
     ///   - collectable_amt: Amount made collectable for the account
     ///   - split_amt: Amount split to receivers
     public fun split_result(
-        account_id: u256,
-        curr_receivers: &vector<SplitsReceiver>,
-        amount: u128
+        account_id: u256, curr_receivers: &vector<SplitsReceiver>, amount: u128
     ): (u128, u128) acquires SplitsStorage {
         assert_curr_splits(account_id, curr_receivers);
 
@@ -251,11 +248,12 @@ module xylkit::splits {
         let len = curr_receivers.length();
         let i = 0;
         while (i < len) {
-            splits_weight += (curr_receivers.borrow(i).weight as u64);
+            splits_weight +=(curr_receivers.borrow(i).weight as u64);
             i += 1;
         };
 
-        let split_amt = (((amount as u256) * (splits_weight as u256) / (TOTAL_SPLITS_WEIGHT as u256)) as u128);
+        let split_amt =
+            (((amount as u256) * (splits_weight as u256) / (TOTAL_SPLITS_WEIGHT as u256)) as u128);
         let collectable_amt = amount - split_amt;
 
         (collectable_amt, split_amt)
@@ -273,9 +271,7 @@ module xylkit::splits {
     ///   - collectable_amt: Amount made collectable for the account
     ///   - split_amt: Amount split to receivers
     public(friend) fun split(
-        account_id: u256,
-        token_type: TypeInfo,
-        curr_receivers: &vector<SplitsReceiver>
+        account_id: u256, token_type: TypeInfo, curr_receivers: &vector<SplitsReceiver>
     ): (u128, u128) acquires SplitsStorage {
         assert_curr_splits(account_id, curr_receivers);
 
@@ -303,10 +299,14 @@ module xylkit::splits {
 
         while (i < len) {
             let receiver = curr_receivers.borrow(i);
-            splits_weight += (receiver.weight as u64);
+            splits_weight +=(receiver.weight as u64);
 
             // Calculate this receiver's share using cumulative weight
-            let curr_split_amt = (((collectable_amt as u256) * (splits_weight as u256) / (TOTAL_SPLITS_WEIGHT as u256)) as u128) - split_amt;
+            let curr_split_amt =
+                (
+                    ((collectable_amt as u256) * (splits_weight as u256)
+                        / (TOTAL_SPLITS_WEIGHT as u256)) as u128
+                ) - split_amt;
             split_amt += curr_split_amt;
 
             // Add to receiver's splittable balance
@@ -343,8 +343,7 @@ module xylkit::splits {
     ///   Each receiver gets `weight / TOTAL_SPLITS_WEIGHT` share of split funds.
     ///   If sum of weights < TOTAL_SPLITS_WEIGHT, remainder stays with account.
     public(friend) fun set_splits(
-        account_id: u256,
-        receivers: &vector<SplitsReceiver>
+        account_id: u256, receivers: &vector<SplitsReceiver>
     ) acquires SplitsStorage {
         let storage = borrow_global_mut<SplitsStorage>(@xylkit);
         ensure_state_exists(&mut storage.states, account_id);
@@ -378,11 +377,14 @@ module xylkit::splits {
 
             // Weight must be non-zero
             assert!(receiver.weight != 0, E_SPLITS_RECEIVER_WEIGHT_ZERO);
-            total_weight += (receiver.weight as u64);
+            total_weight +=(receiver.weight as u64);
 
             // Must be sorted by account_id (strictly increasing)
             if (i > 0) {
-                assert!(prev_account_id < receiver.account_id, E_SPLITS_RECEIVERS_NOT_SORTED);
+                assert!(
+                    prev_account_id < receiver.account_id,
+                    E_SPLITS_RECEIVERS_NOT_SORTED
+                );
             };
             prev_account_id = receiver.account_id;
 
@@ -390,13 +392,14 @@ module xylkit::splits {
         };
 
         // Total weight must not exceed maximum
-        assert!(total_weight <= (TOTAL_SPLITS_WEIGHT as u64), E_SPLITS_WEIGHTS_SUM_TOO_HIGH);
+        assert!(
+            total_weight <= (TOTAL_SPLITS_WEIGHT as u64), E_SPLITS_WEIGHTS_SUM_TOO_HIGH
+        );
     }
 
     /// Asserts that the list of splits receivers is the account's currently used one.
     fun assert_curr_splits(
-        account_id: u256,
-        curr_receivers: &vector<SplitsReceiver>
+        account_id: u256, curr_receivers: &vector<SplitsReceiver>
     ) acquires SplitsStorage {
         assert!(
             hash_splits(curr_receivers) == splits_hash(account_id),

@@ -31,6 +31,8 @@ module xylkit::splits {
     const E_INVALID_CURRENT_SPLITS_RECEIVERS: u64 = 5;
     /// Storage already initialized
     const E_ALREADY_INITIALIZED: u64 = 6;
+    /// Caller is not the deployer
+    const E_NOT_DEPLOYER: u64 = 7;
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              STORAGE & TYPES
@@ -74,6 +76,7 @@ module xylkit::splits {
     /// Called by drips::init_module
     public(friend) fun initialize(account: &signer) {
         let addr = std::signer::address_of(account);
+        assert!(addr == @xylkit, E_NOT_DEPLOYER);
         assert!(!exists<SplitsStorage>(addr), E_ALREADY_INITIALIZED);
 
         move_to(account, SplitsStorage { states: smart_table::new() });

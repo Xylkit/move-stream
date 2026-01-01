@@ -45,6 +45,8 @@ module xylkit::streams {
     const E_ENTRY_WITH_HASH_AND_RECEIVERS: u64 = 8;
     /// Timestamp is before the last streams update
     const E_TIMESTAMP_BEFORE_UPDATE: u64 = 9;
+    /// Caller is not the deployer
+    const E_NOT_DEPLOYER: u64 = 10;
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              STORAGE & TYPES
@@ -142,6 +144,7 @@ module xylkit::streams {
     /// Called by drips::init_module
     public(friend) fun initialize(account: &signer, cycle_secs: u64) {
         let addr = std::signer::address_of(account);
+        assert!(addr == @xylkit, E_NOT_DEPLOYER);
         assert!(!exists<StreamsStorage>(addr), E_ALREADY_INITIALIZED);
         assert!(cycle_secs > 1, E_CYCLE_SECS_TOO_LOW);
 

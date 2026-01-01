@@ -11,6 +11,7 @@ module xylkit::drips {
 
     friend xylkit::address_driver;
     friend xylkit::nft_driver;
+    friend xylkit::driver_transfer_utils;
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                                 CONSTANTS
@@ -42,8 +43,11 @@ module xylkit::drips {
     //                                   ERRORS
     // ═══════════════════════════════════════════════════════════════════════════════
 
+    /// Total balance would exceed MAX_TOTAL_BALANCE
     const E_TOTAL_BALANCE_TOO_HIGH: u64 = 1;
+    /// Token balance held by Drips is less than the required amount
     const E_TOKEN_BALANCE_TOO_LOW: u64 = 2;
+    /// Withdrawal amount exceeds available withdrawable balance
     const E_WITHDRAWAL_AMOUNT_TOO_HIGH: u64 = 3;
 
     /// Seed for creating the resource account that holds tokens

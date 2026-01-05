@@ -159,6 +159,34 @@ module xylkit::streams {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    //                              CONSTRUCTORS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Creates a new StreamReceiver
+    public fun new_stream_receiver(
+        account_id: u256,
+        stream_id: u64,
+        amt_per_sec: u256,
+        start: u64,
+        duration: u64
+    ): StreamReceiver {
+        StreamReceiver {
+            account_id,
+            config: StreamConfig { stream_id, amt_per_sec, start, duration }
+        }
+    }
+
+    /// Creates a new StreamsHistory entry
+    public fun new_streams_history(
+        streams_hash: vector<u8>,
+        receivers: vector<StreamReceiver>,
+        update_time: u64,
+        max_end: u64
+    ): StreamsHistory {
+        StreamsHistory { streams_hash, receivers, update_time, max_end }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
     //                              CORE UTILITIES
     // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -169,16 +197,14 @@ module xylkit::streams {
 
     /// Returns the cycle containing the given timestamp
     /// Note: There can never be cycle 0 (timestamp / cycle_secs + 1)
-    fun cycle_of(ts: u64): u64 acquires StreamsStorage {
-        let storage = borrow_global<StreamsStorage>(@xylkit);
-        ts / storage.cycle_secs + 1
+    fun cycle_of(ts: u64, cycle_secs: u64): u64 {
+        ts / cycle_secs + 1
     }
 
     /// Returns the start timestamp of the current cycle
-    fun curr_cycle_start(): u64 acquires StreamsStorage {
-        let storage = borrow_global<StreamsStorage>(@xylkit);
+    fun curr_cycle_start(cycle_secs: u64): u64 {
         let curr_ts = curr_timestamp();
-        curr_ts - (curr_ts % storage.cycle_secs)
+        curr_ts - (curr_ts % cycle_secs)
     }
 
     /// Returns the configured cycle length
@@ -448,15 +474,15 @@ module xylkit::streams {
     fun add_delta(
         amt_deltas: &mut SmartTable<u64, AmtDelta>,
         timestamp: u64,
-        amt_per_sec: i256
-    ) acquires StreamsStorage {
-        let cycle_secs = get_cycle_secs();
+        amt_per_sec: i256,
+        cycle_secs: u64
+    ) {
         let multiplier = (AMT_PER_SEC_MULTIPLIER as i256);
 
         let full_cycle = ((cycle_secs as i256) * amt_per_sec) / multiplier;
         let next_cycle = (((timestamp % cycle_secs) as i256) * amt_per_sec) / multiplier;
 
-        let cycle = cycle_of(timestamp);
+        let cycle = cycle_of(timestamp, cycle_secs);
 
         if (!amt_deltas.contains(cycle)) {
             amt_deltas.add(cycle, AmtDelta { this_cycle: 0, next_cycle: 0 });
@@ -478,11 +504,22 @@ module xylkit::streams {
         state: &mut StreamsState,
         start: u64,
         end: u64,
-        amt_per_sec: i256
-    ) acquires StreamsStorage {
+        amt_per_sec: i256,
+        cycle_secs: u64
+    ) {
         if (start == end) { return };
-        add_delta(&mut state.amt_deltas, start, amt_per_sec);
-        add_delta(&mut state.amt_deltas, end, 0 - amt_per_sec);
+        add_delta(
+            &mut state.amt_deltas,
+            start,
+            amt_per_sec,
+            cycle_secs
+        );
+        add_delta(
+            &mut state.amt_deltas,
+            end,
+            0 - amt_per_sec,
+            cycle_secs
+        );
     }
 
     /// Applies the effects of streams configuration changes on receivers' states
@@ -494,6 +531,7 @@ module xylkit::streams {
     /// `curr_max_end`: Max end time from last update
     /// `new_receivers`: New receivers list to set
     /// `new_max_end`: Max end time for new configuration
+    /// `cycle_secs`: The cycle length in seconds
     fun update_receiver_states(
         states: &mut SmartTable<StreamsStateKey, StreamsState>,
         token_type: std::type_info::TypeInfo,
@@ -501,8 +539,9 @@ module xylkit::streams {
         last_update: u64,
         curr_max_end: u64,
         new_receivers: &vector<StreamReceiver>,
-        new_max_end: u64
-    ) acquires StreamsStorage {
+        new_max_end: u64,
+        cycle_secs: u64
+    ) {
         let curr_len = curr_receivers.length();
         let new_len = new_receivers.length();
         let curr_idx: u64 = 0;
@@ -582,12 +621,24 @@ module xylkit::streams {
                 // Optimization: instead of removing old range and adding new range,
                 // just adjust the start and end deltas
                 // TODO: Explain how this works much clearly
-                add_delta_range(state, curr_start, new_start, 0 - amt_per_sec);
-                add_delta_range(state, curr_end, new_end, amt_per_sec);
+                add_delta_range(
+                    state,
+                    curr_start,
+                    new_start,
+                    0 - amt_per_sec,
+                    cycle_secs
+                );
+                add_delta_range(
+                    state,
+                    curr_end,
+                    new_end,
+                    amt_per_sec,
+                    cycle_secs
+                );
 
                 // Ensure account receives updated cycles
-                let curr_start_cycle = cycle_of(curr_start);
-                let new_start_cycle = cycle_of(new_start);
+                let curr_start_cycle = cycle_of(curr_start, cycle_secs);
+                let new_start_cycle = cycle_of(new_start, cycle_secs);
                 if (curr_start_cycle > new_start_cycle
                     && state.next_receivable_cycle > new_start_cycle) {
                     state.next_receivable_cycle = new_start_cycle;
@@ -611,7 +662,7 @@ module xylkit::streams {
                         MAX_U64
                     );
                 let amt_per_sec = (curr_recv.config.amt_per_sec as i256);
-                add_delta_range(state, start, end, 0 - amt_per_sec);
+                add_delta_range(state, start, end, 0 - amt_per_sec, cycle_secs);
 
                 curr_idx += 1;
             } else if (pick_new) {
@@ -630,10 +681,10 @@ module xylkit::streams {
                         MAX_U64
                     );
                 let amt_per_sec = (new_recv.config.amt_per_sec as i256);
-                add_delta_range(state, start, end, amt_per_sec);
+                add_delta_range(state, start, end, amt_per_sec, cycle_secs);
 
                 // Ensure account receives updated cycles
-                let start_cycle = cycle_of(start);
+                let start_cycle = cycle_of(start, cycle_secs);
                 let next_receivable = state.next_receivable_cycle;
                 if (next_receivable == 0 || next_receivable > start_cycle) {
                     state.next_receivable_cycle = start_cycle;
@@ -868,7 +919,7 @@ module xylkit::streams {
         };
 
         let from_cycle = storage.states.borrow(state_key).next_receivable_cycle;
-        let to_cycle = cycle_of(curr_timestamp());
+        let to_cycle = cycle_of(curr_timestamp(), storage.cycle_secs);
 
         // Nothing to receive if from_cycle is 0 or ahead of current cycle
         if (from_cycle == 0 || to_cycle < from_cycle) {
@@ -1016,6 +1067,7 @@ module xylkit::streams {
             );
 
         let storage = borrow_global_mut<StreamsStorage>(@xylkit);
+        let cycle_secs = storage.cycle_secs;
         let state_key = StreamsStateKey { token_type, account_id };
         ensure_state_exists(&mut storage.states, state_key);
         let state = storage.states.borrow_mut(state_key);
@@ -1040,13 +1092,14 @@ module xylkit::streams {
         // Apply negative delta to remove squeezed amount from current cycle
         // This prevents double-receiving via receive_streams
         if (amt > 0) {
-            let cycle_start = curr_cycle_start();
+            let cycle_start = curr_cycle_start(cycle_secs);
             let neg_amt_per_sec = 0 - ((amt as i256) * (AMT_PER_SEC_MULTIPLIER as i256));
             add_delta_range(
                 state,
                 cycle_start,
                 cycle_start + 1,
-                neg_amt_per_sec
+                neg_amt_per_sec,
+                cycle_secs
             );
         };
 
@@ -1074,6 +1127,7 @@ module xylkit::streams {
         streams_history: &vector<StreamsHistory>
     ): (u128, vector<u64>, vector<vector<u8>>, u64) acquires StreamsStorage {
         let storage = borrow_global<StreamsStorage>(@xylkit);
+        let cycle_secs = storage.cycle_secs;
         let sender_key = StreamsStateKey { token_type, account_id: sender_id };
 
         // Get sender's final history hash for verification
@@ -1094,9 +1148,10 @@ module xylkit::streams {
 
         // Determine how many configs to check in current cycle
         // If last update was not in current cycle, only the latest entry matters
+        let curr_cycle_start_ts = curr_cycle_start(cycle_secs);
         let curr_cycle_configs =
             if (storage.states.contains(sender_key)
-                && storage.states.borrow(sender_key).update_time >= curr_cycle_start()) {
+                && storage.states.borrow(sender_key).update_time >= curr_cycle_start_ts) {
                 storage.states.borrow(sender_key).curr_cycle_configs
             } else { 1 };
 
@@ -1133,7 +1188,7 @@ module xylkit::streams {
                 // squeeze_start_cap = max(next_squeezed, curr_cycle_start, entry.update_time)
                 let squeeze_start_cap =
                     max_u64(
-                        max_u64(next_squeezed_ts, curr_cycle_start()),
+                        max_u64(next_squeezed_ts, curr_cycle_start_ts),
                         entry.update_time
                     );
 
@@ -1238,43 +1293,43 @@ module xylkit::streams {
         max_end_hint1: u64,
         max_end_hint2: u64
     ): i128 acquires StreamsStorage {
-        let storage = borrow_global_mut<StreamsStorage>(@xylkit);
-        let state_key = StreamsStateKey { token_type, account_id };
-        ensure_state_exists(&mut storage.states, state_key);
+        // First, get cycle_secs before any mutable borrow
+        let cycle_secs = get_cycle_secs();
 
-        // Verify current receivers match stored hash
-        {
-            let state = storage.states.borrow(state_key);
-            verify_streams_receivers(curr_receivers, state);
-        };
-
-        // Get current state values
+        // Calculate new max_end before borrowing storage mutably
+        // We need to get current balance first
         let (
+            curr_balance,
             last_update,
             curr_max_end,
-            stored_balance,
             old_history_hash,
             old_curr_cycle_configs
         ) = {
-            let state = storage.states.borrow(state_key);
-            (
-                state.update_time,
-                state.max_end,
-                state.balance,
-                state.streams_history_hash,
-                state.curr_cycle_configs
-            )
-        };
+            let storage = borrow_global<StreamsStorage>(@xylkit);
+            let state_key = StreamsStateKey { token_type, account_id };
 
-        // Calculate current balance
-        let curr_balance =
-            calc_balance(
-                stored_balance,
-                last_update,
-                curr_max_end,
-                curr_receivers,
-                curr_timestamp()
-            );
+            if (!storage.states.contains(state_key)) {
+                (0u128, 0u64, 0u64, vector::empty<u8>(), 0u64)
+            } else {
+                let state = storage.states.borrow(state_key);
+                verify_streams_receivers(curr_receivers, state);
+                let balance =
+                    calc_balance(
+                        state.balance,
+                        state.update_time,
+                        state.max_end,
+                        curr_receivers,
+                        curr_timestamp()
+                    );
+                (
+                    balance,
+                    state.update_time,
+                    state.max_end,
+                    state.streams_history_hash,
+                    state.curr_cycle_configs
+                )
+            }
+        };
 
         // Cap balance_delta at withdrawal of entire balance
         let real_balance_delta = balance_delta;
@@ -1290,7 +1345,7 @@ module xylkit::streams {
                 curr_balance - ((0 - real_balance_delta) as u128)
             };
 
-        // Calculate new max_end
+        // Calculate new max_end (no storage borrow conflict now)
         let new_max_end =
             calc_max_end(
                 new_balance,
@@ -1298,6 +1353,11 @@ module xylkit::streams {
                 max_end_hint1,
                 max_end_hint2
             );
+
+        // Now borrow storage mutably for updates
+        let storage = borrow_global_mut<StreamsStorage>(@xylkit);
+        let state_key = StreamsStateKey { token_type, account_id };
+        ensure_state_exists(&mut storage.states, state_key);
 
         // Update receiver states (apply deltas)
         update_receiver_states(
@@ -1307,7 +1367,8 @@ module xylkit::streams {
             last_update,
             curr_max_end,
             new_receivers,
-            new_max_end
+            new_max_end,
+            cycle_secs
         );
 
         // Update sender state
@@ -1322,7 +1383,7 @@ module xylkit::streams {
         // If history exists and we crossed a cycle boundary, reset to 2
         // Otherwise increment
         if (old_history_hash.length() != 0
-            && cycle_of(last_update) != cycle_of(curr_ts)) {
+            && cycle_of(last_update, cycle_secs) != cycle_of(curr_ts, cycle_secs)) {
             state.curr_cycle_configs = 2;
         } else {
             state.curr_cycle_configs = old_curr_cycle_configs + 1;

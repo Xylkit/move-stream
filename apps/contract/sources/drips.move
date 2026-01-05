@@ -84,8 +84,17 @@ module xylkit::drips {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    //                                  EVENTS
+    //                              CONSTRUCTORS
     // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Creates a new AccountMetadata
+    public fun new_account_metadata(key: vector<u8>, value: vector<u8>): AccountMetadata {
+        AccountMetadata { key, value }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    //                                  EVENTS
+    // ═══════════════════════════════════════════════
 
     #[event]
     /// Emitted by the account to broadcast metadata.

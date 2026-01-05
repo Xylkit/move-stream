@@ -69,8 +69,17 @@ module xylkit::splits {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    //                              INITIALIZATION
+    //                              CONSTRUCTORS
     // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Creates a new SplitsReceiver
+    public fun new_splits_receiver(account_id: u256, weight: u32): SplitsReceiver {
+        SplitsReceiver { account_id, weight }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    //                              INITIALIZATION
+    // ═════════════════════════════════════════════════════════════
 
     /// Initialize splits storage at @xylkit\
     /// Called by drips::init_module

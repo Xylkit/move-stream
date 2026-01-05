@@ -5,3 +5,25 @@
 
 Thumbs.db
 **/Thumbs.db
+
+# Build artifacts
+apps/contract/build/
+apps/docs/dist/
+apps/docs/node_modules/
+
+# Context and reference files (not part of main codebase)
+context-folder/
+
+# IDE
+.vscode/
+
+# Notes and temporary docs
+Notes.md
+Questions.md
+TODO.md
+DEPLOYMENT.md
+DEPLOYMENT_SUMMARY.md
+XYLKIT_UI_COMPLETE.md
+
+# Aptos local testnet data
+apps/contract/.aptos/testnet/

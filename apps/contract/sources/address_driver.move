@@ -3,10 +3,11 @@
 /// No registration is required, an address can start using Drips immediately.
 module xylkit::address_driver {
     use std::signer;
-    use aptos_std::type_info::TypeInfo;
+    use std::vector;
+    use aptos_std::type_info;
     use xylkit::drips::{Self, AccountMetadata};
-    use xylkit::streams;
-    use xylkit::splits;
+    use xylkit::streams::{Self, StreamReceiver};
+    use xylkit::splits::{Self, SplitsReceiver};
     use xylkit::driver_transfer_utils;
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -101,11 +102,12 @@ module xylkit::address_driver {
     /// and transfers them to the specified address.
     ///
     /// `caller`: The signer collecting funds\
-    /// `token_type`: The token type to collect\
+    /// `T`: The token type to collect (type parameter)\
     /// `transfer_to`: The address to send collected funds to
-    public entry fun collect(
-        caller: &signer, token_type: TypeInfo, transfer_to: address
+    public entry fun collect<T: key>(
+        caller: &signer, transfer_to: address
     ) acquires AddressDriverStorage {
+        let token_type = type_info::type_of<T>();
         driver_transfer_utils::collect_and_transfer(
             caller_account_id(caller),
             token_type,
@@ -119,14 +121,14 @@ module xylkit::address_driver {
     ///
     /// `caller`: The signer giving funds\
     /// `receiver`: The receiver account ID\
-    /// `token_type`: The token type to give\
+    /// `T`: The token type to give (type parameter)\
     /// `amt`: The amount to give
-    public entry fun give(
+    public entry fun give<T: key>(
         caller: &signer,
         receiver: u256,
-        token_type: TypeInfo,
         amt: u128
     ) acquires AddressDriverStorage {
+        let token_type = type_info::type_of<T>();
         driver_transfer_utils::give_and_transfer(
             caller,
             caller_account_id(caller),
@@ -141,23 +143,53 @@ module xylkit::address_driver {
     /// to fulfil the change of the streams balance.
     ///
     /// `caller`: The signer setting streams\
-    /// `token_type`: The token type for streaming\
-    /// `curr_receivers`: The current streams receivers list\
+    /// `T`: The token type for streaming (type parameter)\
+    /// `curr_receiver_account_ids`: Current receivers' account IDs\
+    /// `curr_receiver_stream_ids`: Current receivers' stream IDs\
+    /// `curr_receiver_amt_per_secs`: Current receivers' amt_per_sec values\
+    /// `curr_receiver_starts`: Current receivers' start times\
+    /// `curr_receiver_durations`: Current receivers' durations\
     /// `balance_delta`: The streams balance change (positive to add, negative to remove)\
-    /// `new_receivers`: The new streams receivers list\
+    /// `new_receiver_account_ids`: New receivers' account IDs\
+    /// `new_receiver_stream_ids`: New receivers' stream IDs\
+    /// `new_receiver_amt_per_secs`: New receivers' amt_per_sec values\
+    /// `new_receiver_starts`: New receivers' start times\
+    /// `new_receiver_durations`: New receivers' durations\
     /// `max_end_hint1`: Optional hint for gas optimization (pass 0 to ignore)\
     /// `max_end_hint2`: Optional hint for gas optimization (pass 0 to ignore)\
     /// `transfer_to`: The address to send funds to if balance decreases
-    public entry fun set_streams(
+    public entry fun set_streams<T: key>(
         caller: &signer,
-        token_type: TypeInfo,
-        curr_receivers: vector<streams::StreamReceiver>,
+        curr_receiver_account_ids: vector<u256>,
+        curr_receiver_stream_ids: vector<u64>,
+        curr_receiver_amt_per_secs: vector<u256>,
+        curr_receiver_starts: vector<u64>,
+        curr_receiver_durations: vector<u64>,
         balance_delta: i128,
-        new_receivers: vector<streams::StreamReceiver>,
+        new_receiver_account_ids: vector<u256>,
+        new_receiver_stream_ids: vector<u64>,
+        new_receiver_amt_per_secs: vector<u256>,
+        new_receiver_starts: vector<u64>,
+        new_receiver_durations: vector<u64>,
         max_end_hint1: u64,
         max_end_hint2: u64,
         transfer_to: address
     ) acquires AddressDriverStorage {
+        let token_type = type_info::type_of<T>();
+        let curr_receivers = build_stream_receivers(
+            &curr_receiver_account_ids,
+            &curr_receiver_stream_ids,
+            &curr_receiver_amt_per_secs,
+            &curr_receiver_starts,
+            &curr_receiver_durations
+        );
+        let new_receivers = build_stream_receivers(
+            &new_receiver_account_ids,
+            &new_receiver_stream_ids,
+            &new_receiver_amt_per_secs,
+            &new_receiver_starts,
+            &new_receiver_durations
+        );
         driver_transfer_utils::set_streams_and_transfer(
             caller,
             caller_account_id(caller),
@@ -177,10 +209,14 @@ module xylkit::address_driver {
     /// after this function finishes, the new splits configuration will be used.
     ///
     /// `caller`: The signer setting splits\
-    /// `receivers`: The list of splits receivers to set
+    /// `receiver_account_ids`: The receivers' account IDs\
+    /// `receiver_weights`: The receivers' weights
     public entry fun set_splits(
-        caller: &signer, receivers: vector<splits::SplitsReceiver>
+        caller: &signer,
+        receiver_account_ids: vector<u256>,
+        receiver_weights: vector<u32>
     ) acquires AddressDriverStorage {
+        let receivers = build_splits_receivers(&receiver_account_ids, &receiver_weights);
         drips::set_splits(caller_account_id(caller), &receivers);
     }
 
@@ -189,11 +225,73 @@ module xylkit::address_driver {
     /// to establish conventions for compatibility with consumers.
     ///
     /// `caller`: The signer emitting metadata\
-    /// `account_metadata`: The metadata key-value pairs to emit
+    /// `keys`: The metadata keys\
+    /// `values`: The metadata values
     public entry fun emit_account_metadata(
-        caller: &signer, account_metadata: vector<AccountMetadata>
+        caller: &signer,
+        keys: vector<vector<u8>>,
+        values: vector<vector<u8>>
     ) acquires AddressDriverStorage {
+        let account_metadata = build_account_metadata(&keys, &values);
         drips::emit_account_metadata(caller_account_id(caller), account_metadata);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    //                              HELPER FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    /// Builds a vector of StreamReceiver from parallel vectors
+    fun build_stream_receivers(
+        account_ids: &vector<u256>,
+        stream_ids: &vector<u64>,
+        amt_per_secs: &vector<u256>,
+        starts: &vector<u64>,
+        durations: &vector<u64>
+    ): vector<StreamReceiver> {
+        let len = account_ids.length();
+        let receivers = vector::empty<StreamReceiver>();
+        let i = 0;
+        while (i < len) {
+            receivers.push_back(streams::new_stream_receiver(
+                account_ids[i],
+                stream_ids[i],
+                amt_per_secs[i],
+                starts[i],
+                durations[i]
+            ));
+            i += 1;
+        };
+        receivers
+    }
+
+    /// Builds a vector of SplitsReceiver from parallel vectors
+    fun build_splits_receivers(
+        account_ids: &vector<u256>,
+        weights: &vector<u32>
+    ): vector<SplitsReceiver> {
+        let len = account_ids.length();
+        let receivers = vector::empty<SplitsReceiver>();
+        let i = 0;
+        while (i < len) {
+            receivers.push_back(splits::new_splits_receiver(account_ids[i], weights[i]));
+            i += 1;
+        };
+        receivers
+    }
+
+    /// Builds a vector of AccountMetadata from parallel vectors
+    fun build_account_metadata(
+        keys: &vector<vector<u8>>,
+        values: &vector<vector<u8>>
+    ): vector<AccountMetadata> {
+        let len = keys.length();
+        let metadata = vector::empty<AccountMetadata>();
+        let i = 0;
+        while (i < len) {
+            metadata.push_back(drips::new_account_metadata(keys[i], values[i]));
+            i += 1;
+        };
+        metadata
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════

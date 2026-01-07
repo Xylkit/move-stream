@@ -1,0 +1,16 @@
+[package]
+name = "xylkstream"
+version = "0.1.0"
+authors = ["xylkstream Team"]
+
+[addresses]
+xylkstream = "_"
+aptos_token_objects = "0x4"
+movemate= "0x10"
+
+[dev-addresses]
+xylkstream = "0x42"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/movementlabsxyz/aptos-core.git", subdir = "aptos-move/framework/aptos-framework", rev = "main" }
+AptosTokenObjects = { git = "https://github.com/movementlabsxyz/aptos-core.git", subdir = "aptos-move/framework/aptos-token-objects", rev = "main" }

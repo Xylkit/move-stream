@@ -9,18 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./app/__root"
+import { Route as ExplorerRouteImport } from "./app/explorer"
 import { Route as DocumentationRouteImport } from "./app/documentation"
-import { Route as CookbookRouteImport } from "./app/cookbook"
+import { Route as DemoRouteImport } from "./app/demo"
 import { Route as IndexRouteImport } from "./app/index"
 
+const ExplorerRoute = ExplorerRouteImport.update({
+  id: "/explorer",
+  path: "/explorer",
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocumentationRoute = DocumentationRouteImport.update({
   id: "/documentation",
   path: "/documentation",
   getParentRoute: () => rootRouteImport,
 } as any)
-const CookbookRoute = CookbookRouteImport.update({
-  id: "/cookbook",
-  path: "/cookbook",
+const DemoRoute = DemoRouteImport.update({
+  id: "/demo",
+  path: "/demo",
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -31,36 +37,47 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
-  "/cookbook": typeof CookbookRoute
+  "/demo": typeof DemoRoute
   "/documentation": typeof DocumentationRoute
+  "/explorer": typeof ExplorerRoute
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
-  "/cookbook": typeof CookbookRoute
+  "/demo": typeof DemoRoute
   "/documentation": typeof DocumentationRoute
+  "/explorer": typeof ExplorerRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/": typeof IndexRoute
-  "/cookbook": typeof CookbookRoute
+  "/demo": typeof DemoRoute
   "/documentation": typeof DocumentationRoute
+  "/explorer": typeof ExplorerRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/cookbook" | "/documentation"
+  fullPaths: "/" | "/demo" | "/documentation" | "/explorer"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/cookbook" | "/documentation"
-  id: "__root__" | "/" | "/cookbook" | "/documentation"
+  to: "/" | "/demo" | "/documentation" | "/explorer"
+  id: "__root__" | "/" | "/demo" | "/documentation" | "/explorer"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  CookbookRoute: typeof CookbookRoute
+  DemoRoute: typeof DemoRoute
   DocumentationRoute: typeof DocumentationRoute
+  ExplorerRoute: typeof ExplorerRoute
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
+    "/explorer": {
+      id: "/explorer"
+      path: "/explorer"
+      fullPath: "/explorer"
+      preLoaderRoute: typeof ExplorerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/documentation": {
       id: "/documentation"
       path: "/documentation"
@@ -68,11 +85,11 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DocumentationRouteImport
       parentRoute: typeof rootRouteImport
     }
-    "/cookbook": {
-      id: "/cookbook"
-      path: "/cookbook"
-      fullPath: "/cookbook"
-      preLoaderRoute: typeof CookbookRouteImport
+    "/demo": {
+      id: "/demo"
+      path: "/demo"
+      fullPath: "/demo"
+      preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/": {
@@ -87,8 +104,9 @@ declare module "@tanstack/react-router" {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  CookbookRoute: CookbookRoute,
+  DemoRoute: DemoRoute,
   DocumentationRoute: DocumentationRoute,
+  ExplorerRoute: ExplorerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,20 +1,16 @@
 /// A driver implementing token-based account identification.
 /// Anybody can mint a new token and create a new identity.
 /// Only the current holder of the token can control its account ID.
-/// The token ID and the account ID controlled by it are always equal.
 module xylkstream::nft_driver {
     use std::signer;
     use std::option;
-    use std::vector;
     use std::string::{Self, String};
-    use aptos_std::type_info;
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_framework::object::{Self, ExtendRef};
     use aptos_token_objects::collection;
     use aptos_token_objects::token;
-    use xylkstream::drips::{Self, AccountMetadata};
-    use xylkstream::streams::{Self, StreamReceiver};
-    use xylkstream::splits::{Self, SplitsReceiver};
+    use xylkstream::drips;
+    use xylkstream::driver_utils::{Self, AccountMetadata};
     use xylkstream::driver_transfer_utils;
     use movemate::i128;
 
@@ -22,16 +18,11 @@ module xylkstream::nft_driver {
     //                                 CONSTANTS
     // ═══════════════════════════════════════════════════════════════════════════════
 
-    /// Mask for the lower 160 bits (minter portion).
-    const MINTER_MASK: u256 = 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-
-    /// Collection name for NFT driver tokens.
+    const NFT_DRIVER_ID: u32 = 2;
+    const MINTER_MASK: u256 =
+        0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
     const COLLECTION_NAME: vector<u8> = b"Drips Identity";
-
-    /// Collection description.
     const COLLECTION_DESCRIPTION: vector<u8> = b"NFT-based identity for Drips protocol";
-
-    /// Collection URI.
     const COLLECTION_URI: vector<u8> = b"";
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -40,8 +31,6 @@ module xylkstream::nft_driver {
 
     /// Storage already initialized
     const E_ALREADY_INITIALIZED: u64 = 100;
-    /// Caller is not the deployer
-    const E_NOT_DEPLOYER: u64 = 101;
     /// Caller is not the token owner
     const E_NOT_TOKEN_OWNER: u64 = 102;
     /// Salt has already been used by this minter
@@ -77,7 +66,6 @@ module xylkstream::nft_driver {
         burn_ref: token::BurnRef
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              INITIALIZATION
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -85,27 +73,26 @@ module xylkstream::nft_driver {
     /// Initialize the NFT driver with the given driver ID.
     /// Creates the NFT collection for Drips identity tokens.
     ///
-    /// `deployer`: The deployer signer\
-    /// `driver_id`: The driver ID to assign
-    public entry fun initialize(deployer: &signer, driver_id: u32) {
+    /// `deployer`: The deployer signer
+    fun init_module(deployer: &signer) {
         let addr = signer::address_of(deployer);
-        assert!(addr == @xylkstream, E_NOT_DEPLOYER);
         assert!(!exists<NFTDriverStorage>(addr), E_ALREADY_INITIALIZED);
 
-        let collection_constructor_ref = collection::create_unlimited_collection(
-            deployer,
-            string::utf8(COLLECTION_DESCRIPTION),
-            string::utf8(COLLECTION_NAME),
-            option::none(),
-            string::utf8(COLLECTION_URI)
-        );
-
-        let collection_extend_ref = object::generate_extend_ref(&collection_constructor_ref);
+        let collection_constructor_ref =
+            collection::create_unlimited_collection(
+                deployer,
+                string::utf8(COLLECTION_DESCRIPTION),
+                string::utf8(COLLECTION_NAME),
+                option::none(),
+                string::utf8(COLLECTION_URI)
+            );
+        let collection_extend_ref =
+            object::generate_extend_ref(&collection_constructor_ref);
 
         move_to(
             deployer,
             NFTDriverStorage {
-                driver_id,
+                driver_id: NFT_DRIVER_ID,
                 minted_tokens: 0,
                 used_salts: smart_table::new(),
                 collection_extend_ref,
@@ -142,7 +129,9 @@ module xylkstream::nft_driver {
     }
 
     /// Internal token ID calculation.
-    fun calc_token_id_with_salt_internal(driver_id: u32, minter: address, salt: u64): u256 {
+    fun calc_token_id_with_salt_internal(
+        driver_id: u32, minter: address, salt: u64
+    ): u256 {
         let token_id = (driver_id as u256);
         token_id = (token_id << 160) | (addr_to_u256(minter) & MINTER_MASK);
         token_id = (token_id << 64) | (salt as u256);
@@ -176,7 +165,6 @@ module xylkstream::nft_driver {
         minter_salts.contains(salt)
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              MINTING
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -196,9 +184,13 @@ module xylkstream::nft_driver {
         metadata_keys: vector<vector<u8>>,
         metadata_values: vector<vector<u8>>
     ) acquires NFTDriverStorage {
-        let account_metadata = build_account_metadata(&metadata_keys, &metadata_values);
+        let account_metadata =
+            driver_utils::build_account_metadata(&metadata_keys, &metadata_values);
         let storage = borrow_global_mut<NFTDriverStorage>(@xylkstream);
-        let token_id = calc_token_id_with_salt_internal(storage.driver_id, @0x0, storage.minted_tokens);
+        let token_id =
+            calc_token_id_with_salt_internal(
+                storage.driver_id, @0x0, storage.minted_tokens
+            );
         storage.minted_tokens += 1;
         mint_internal(caller, to, token_id, account_metadata);
     }
@@ -223,12 +215,12 @@ module xylkstream::nft_driver {
         metadata_keys: vector<vector<u8>>,
         metadata_values: vector<vector<u8>>
     ) acquires NFTDriverStorage {
-        let account_metadata = build_account_metadata(&metadata_keys, &metadata_values);
+        let account_metadata =
+            driver_utils::build_account_metadata(&metadata_keys, &metadata_values);
         let minter = signer::address_of(caller);
         assert!(!is_salt_used(minter, salt), E_SALT_ALREADY_USED);
 
         let storage = borrow_global_mut<NFTDriverStorage>(@xylkstream);
-
         if (!storage.used_salts.contains(minter)) {
             storage.used_salts.add(minter, smart_table::new());
         };
@@ -247,32 +239,38 @@ module xylkstream::nft_driver {
         account_metadata: vector<AccountMetadata>
     ) acquires NFTDriverStorage {
         let storage = borrow_global_mut<NFTDriverStorage>(@xylkstream);
-
         let token_name = string::utf8(b"Drips Identity #");
         token_name.append(u256_to_string(token_id));
 
-        let token_constructor_ref = token::create_named_token(
-            caller,
-            string::utf8(COLLECTION_NAME),
-            string::utf8(b""),
-            token_name,
-            option::none(),
-            string::utf8(b"")
-        );
+        let token_constructor_ref =
+            token::create_named_token(
+                caller,
+                string::utf8(COLLECTION_NAME),
+                string::utf8(b""),
+                token_name,
+                option::none(),
+                string::utf8(b"")
+            );
 
         let token_signer = object::generate_signer(&token_constructor_ref);
         let extend_ref = object::generate_extend_ref(&token_constructor_ref);
         let burn_ref = token::generate_burn_ref(&token_constructor_ref);
         let token_address = object::address_from_constructor_ref(&token_constructor_ref);
 
-        move_to(&token_signer, DripsIdentityToken { token_id, extend_ref, burn_ref });
+        move_to(
+            &token_signer,
+            DripsIdentityToken { token_id, extend_ref, burn_ref }
+        );
         storage.token_addresses.add(token_id, token_address);
 
         let caller_addr = signer::address_of(caller);
         if (to != caller_addr) {
-            object::transfer(caller, object::object_from_constructor_ref<token::Token>(&token_constructor_ref), to);
+            object::transfer(
+                caller,
+                object::object_from_constructor_ref<token::Token>(&token_constructor_ref),
+                to
+            );
         };
-
         emit_account_metadata_internal(token_id, account_metadata);
     }
 
@@ -286,12 +284,11 @@ module xylkstream::nft_driver {
         while (n > 0) {
             let digit = ((n % 10) as u8) + 48;
             buffer.push_back(digit);
-            n /= 10;
+            n = n / 10;
         };
         buffer.reverse();
         string::utf8(buffer)
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              OWNERSHIP VERIFICATION
@@ -301,11 +298,9 @@ module xylkstream::nft_driver {
     fun assert_token_owner(caller: &signer, token_id: u256) acquires NFTDriverStorage {
         let storage = borrow_global<NFTDriverStorage>(@xylkstream);
         assert!(storage.token_addresses.contains(token_id), E_NOT_TOKEN_OWNER);
-
         let token_address = *storage.token_addresses.borrow(token_id);
         let token_object = object::address_to_object<DripsIdentityToken>(token_address);
         let owner = object::owner(token_object);
-
         assert!(signer::address_of(caller) == owner, E_NOT_TOKEN_OWNER);
     }
 
@@ -319,18 +314,18 @@ module xylkstream::nft_driver {
     /// `caller`: The token owner. Must be the owner of the token or approved to use it.\
     /// `token_id`: The ID of the token representing the collecting account ID.
     ///             The token ID is equal to the account ID controlled by it.\
-    /// `T`: The token type (type parameter)\
+    /// `fa_metadata`: The address of FA in use\
     /// `transfer_to`: The address to send collected funds to
     ///
     /// Returns: The collected amount
-    public entry fun collect<T: key>(
+    public entry fun collect(
         caller: &signer,
         token_id: u256,
+        fa_metadata: address,
         transfer_to: address
     ) acquires NFTDriverStorage {
         assert_token_owner(caller, token_id);
-        let token_type = type_info::type_of<T>();
-        driver_transfer_utils::collect_and_transfer(token_id, token_type, transfer_to);
+        driver_transfer_utils::collect_and_transfer(token_id, fa_metadata, transfer_to);
     }
 
     /// Gives funds from the account to the receiver.
@@ -341,17 +336,19 @@ module xylkstream::nft_driver {
     /// `token_id`: The ID of the token representing the giving account ID.
     ///             The token ID is equal to the account ID controlled by it.\
     /// `receiver`: The receiver account ID.\
-    /// `T`: The token type (type parameter)\
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The given amount
-    public entry fun give<T: key>(
+    public entry fun give(
         caller: &signer,
         token_id: u256,
         receiver: u256,
+        fa_metadata: address,
         amt: u128
     ) acquires NFTDriverStorage {
         assert_token_owner(caller, token_id);
-        let token_type = type_info::type_of<T>();
-        driver_transfer_utils::give_and_transfer(caller, token_id, receiver, token_type, amt);
+        driver_transfer_utils::give_and_transfer(
+            caller, token_id, receiver, fa_metadata, amt
+        );
     }
 
     /// Sets the account's streams configuration.
@@ -360,7 +357,7 @@ module xylkstream::nft_driver {
     ///
     /// `caller`: The token owner. Must be the owner of the token or approved to use it.\
     /// `token_id`: The ID of the token representing the configured account ID.\
-    /// `T`: The token type (type parameter)\
+    /// `fa_metadata`: The address of FA in use\
     /// `curr_receiver_account_ids`: Current receivers' account IDs\
     /// `curr_receiver_stream_ids`: Current receivers' stream IDs\
     /// `curr_receiver_amt_per_secs`: Current receivers' amt_per_sec values\
@@ -375,9 +372,10 @@ module xylkstream::nft_driver {
     /// `max_end_hint1`: Optional hint for gas optimization (pass 0 to ignore)\
     /// `max_end_hint2`: Optional hint for gas optimization (pass 0 to ignore)\
     /// `transfer_to`: The address to send funds to in case of decreasing balance
-    public entry fun set_streams<T: key>(
+    public entry fun set_streams(
         caller: &signer,
         token_id: u256,
+        fa_metadata: address,
         curr_receiver_account_ids: vector<u256>,
         curr_receiver_stream_ids: vector<u64>,
         curr_receiver_amt_per_secs: vector<u256>,
@@ -394,26 +392,27 @@ module xylkstream::nft_driver {
         transfer_to: address
     ) acquires NFTDriverStorage {
         assert_token_owner(caller, token_id);
-        let token_type = type_info::type_of<T>();
-        let curr_receivers = build_stream_receivers(
-            &curr_receiver_account_ids,
-            &curr_receiver_stream_ids,
-            &curr_receiver_amt_per_secs,
-            &curr_receiver_starts,
-            &curr_receiver_durations
-        );
-        let new_receivers = build_stream_receivers(
-            &new_receiver_account_ids,
-            &new_receiver_stream_ids,
-            &new_receiver_amt_per_secs,
-            &new_receiver_starts,
-            &new_receiver_durations
-        );
+        let curr_receivers =
+            driver_utils::build_stream_receivers(
+                &curr_receiver_account_ids,
+                &curr_receiver_stream_ids,
+                &curr_receiver_amt_per_secs,
+                &curr_receiver_starts,
+                &curr_receiver_durations
+            );
+        let new_receivers =
+            driver_utils::build_stream_receivers(
+                &new_receiver_account_ids,
+                &new_receiver_stream_ids,
+                &new_receiver_amt_per_secs,
+                &new_receiver_starts,
+                &new_receiver_durations
+            );
         let balance_delta = i128::from_bits(balance_delta_bits);
         driver_transfer_utils::set_streams_and_transfer(
             caller,
             token_id,
-            token_type,
+            fa_metadata,
             &curr_receivers,
             balance_delta,
             &new_receivers,
@@ -437,8 +436,11 @@ module xylkstream::nft_driver {
         receiver_weights: vector<u32>
     ) acquires NFTDriverStorage {
         assert_token_owner(caller, token_id);
-        let receivers = build_splits_receivers(&receiver_account_ids, &receiver_weights);
-        xylkstream::drips::set_splits(token_id, &receivers);
+        let receivers =
+            driver_utils::build_splits_receivers(
+                &receiver_account_ids, &receiver_weights
+            );
+        drips::set_splits(token_id, &receivers);
     }
 
     /// Emits account metadata for the given token.
@@ -454,74 +456,18 @@ module xylkstream::nft_driver {
         values: vector<vector<u8>>
     ) acquires NFTDriverStorage {
         assert_token_owner(caller, token_id);
-        let account_metadata = build_account_metadata(&keys, &values);
+        let account_metadata = driver_utils::build_account_metadata(&keys, &values);
         emit_account_metadata_internal(token_id, account_metadata);
     }
 
     /// Internal function to emit account metadata.
     /// The keys and the values are not standardized by the protocol, it's up to the users
     /// to establish and follow conventions to ensure compatibility with the consumers.
-    fun emit_account_metadata_internal(token_id: u256, account_metadata: vector<AccountMetadata>) {
+    fun emit_account_metadata_internal(
+        token_id: u256, account_metadata: vector<AccountMetadata>
+    ) {
         if (account_metadata.length() == 0) { return };
-        xylkstream::drips::emit_account_metadata(token_id, account_metadata);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    //                              HELPER FUNCTIONS
-    // ═══════════════════════════════════════════════════════════════════════════════
-
-    /// Builds a vector of StreamReceiver from parallel vectors
-    fun build_stream_receivers(
-        account_ids: &vector<u256>,
-        stream_ids: &vector<u64>,
-        amt_per_secs: &vector<u256>,
-        starts: &vector<u64>,
-        durations: &vector<u64>
-    ): vector<StreamReceiver> {
-        let len = account_ids.length();
-        let receivers = vector::empty<StreamReceiver>();
-        let i = 0;
-        while (i < len) {
-            receivers.push_back(streams::new_stream_receiver(
-                account_ids[i],
-                stream_ids[i],
-                amt_per_secs[i],
-                starts[i],
-                durations[i]
-            ));
-            i += 1;
-        };
-        receivers
-    }
-
-    /// Builds a vector of SplitsReceiver from parallel vectors
-    fun build_splits_receivers(
-        account_ids: &vector<u256>,
-        weights: &vector<u32>
-    ): vector<SplitsReceiver> {
-        let len = account_ids.length();
-        let receivers = vector::empty<SplitsReceiver>();
-        let i = 0;
-        while (i < len) {
-            receivers.push_back(splits::new_splits_receiver(account_ids[i], weights[i]));
-            i += 1;
-        };
-        receivers
-    }
-
-    /// Builds a vector of AccountMetadata from parallel vectors
-    fun build_account_metadata(
-        keys: &vector<vector<u8>>,
-        values: &vector<vector<u8>>
-    ): vector<AccountMetadata> {
-        let len = keys.length();
-        let metadata = vector::empty<AccountMetadata>();
-        let i = 0;
-        while (i < len) {
-            metadata.push_back(drips::new_account_metadata(keys[i], values[i]));
-            i += 1;
-        };
-        metadata
+        drips::emit_account_metadata(token_id, account_metadata);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -535,32 +481,32 @@ module xylkstream::nft_driver {
     /// `caller`: The token owner\
     /// `token_id`: The token ID (equal to account ID)
     public entry fun burn(
-        caller: &signer,
-        token_id: u256
+        caller: &signer, token_id: u256
     ) acquires NFTDriverStorage, DripsIdentityToken {
         assert_token_owner(caller, token_id);
-
         let storage = borrow_global_mut<NFTDriverStorage>(@xylkstream);
         let token_address = storage.token_addresses.remove(token_id);
-
-        // Move out and destroy the token data, extracting the burn ref
         let DripsIdentityToken { token_id: _, extend_ref: _, burn_ref } =
             move_from<DripsIdentityToken>(token_address);
-
-        // Burn the token using the burn ref
         token::burn(burn_ref);
     }
 
-    /// Returns the driver ID used by this driver.
+    // ═══════════════════════════════════════════════════════════════════════════════
+    //                              VIEW FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[view]
     public fun driver_id(): u32 acquires NFTDriverStorage {
         borrow_global<NFTDriverStorage>(@xylkstream).driver_id
     }
 
+    #[view]
     /// Returns the number of tokens minted without salt.
     public fun minted_tokens(): u64 acquires NFTDriverStorage {
         borrow_global<NFTDriverStorage>(@xylkstream).minted_tokens
     }
 
+    #[view]
     /// Returns the token address for a given token ID.
     /// Returns none if the token doesn't exist.
     public fun token_address(token_id: u256): option::Option<address> acquires NFTDriverStorage {
@@ -572,15 +518,15 @@ module xylkstream::nft_driver {
         }
     }
 
+    #[view]
     /// Returns the owner of a token.
     /// Aborts if the token doesn't exist.
     public fun owner_of(token_id: u256): address acquires NFTDriverStorage {
         let storage = borrow_global<NFTDriverStorage>(@xylkstream);
         assert!(storage.token_addresses.contains(token_id), E_TOKEN_NOT_FOUND);
-
         let token_address = *storage.token_addresses.borrow(token_id);
         let token_object = object::address_to_object<DripsIdentityToken>(token_address);
         object::owner(token_object)
     }
-
 }
+

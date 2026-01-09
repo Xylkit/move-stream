@@ -1,7 +1,6 @@
 module xylkstream::splits {
     use std::vector;
     use aptos_std::smart_table::{Self, SmartTable};
-    use std::type_info::TypeInfo;
 
     friend xylkstream::drips;
 
@@ -48,8 +47,8 @@ module xylkstream::splits {
     struct SplitsState has store {
         /// The account's splits configuration hash.
         splits_hash: vector<u8>,
-        /// The account's splits balances.
-        balances: SmartTable<TypeInfo, SplitsBalance>
+        /// Balances keyed by FA metadata address
+        balances: SmartTable<address, SplitsBalance>
     }
 
     /// Balance tracking for an account per token
@@ -79,7 +78,7 @@ module xylkstream::splits {
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              INITIALIZATION
-    // ═════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Initialize splits storage at @xylkstream\
     /// Called by drips::init_module
@@ -112,10 +111,10 @@ module xylkstream::splits {
 
     /// Ensures a SplitsBalance exists for the given token_type, creating if needed
     fun ensure_balance_exists(
-        balances: &mut SmartTable<TypeInfo, SplitsBalance>, token_type: TypeInfo
+        balances: &mut SmartTable<address, SplitsBalance>, fa_metadata: address
     ) {
-        if (!balances.contains(token_type)) {
-            balances.add(token_type, SplitsBalance { splittable: 0, collectable: 0 });
+        if (!balances.contains(fa_metadata)) {
+            balances.add(fa_metadata, SplitsBalance { splittable: 0, collectable: 0 });
         };
     }
 
@@ -127,10 +126,10 @@ module xylkstream::splits {
     /// Called internally when funds are received (e.g., from streams or gives).
     ///
     /// `account_id`: The account ID to add splittable funds to\
-    /// `token_type`: The token type\
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to add
     public(friend) fun add_splittable(
-        account_id: u256, token_type: TypeInfo, amt: u128
+        account_id: u256, fa_metadata: address, amt: u128
     ) acquires SplitsStorage {
         if (amt == 0) { return };
 
@@ -138,19 +137,19 @@ module xylkstream::splits {
         ensure_state_exists(&mut storage.states, account_id);
 
         let state = storage.states.borrow_mut(account_id);
-        ensure_balance_exists(&mut state.balances, token_type);
+        ensure_balance_exists(&mut state.balances, fa_metadata);
 
-        let balance = state.balances.borrow_mut(token_type);
+        let balance = state.balances.borrow_mut(fa_metadata);
         balance.splittable += amt;
     }
 
     /// Returns account's received but not split yet funds.
     ///
     /// `account_id`: The account ID\
-    /// `token_type`: The token type
+    /// `fa_metadata`: The address of FA in use\
     ///
     /// Returns: The amount received but not split yet
-    public fun splittable(account_id: u256, token_type: TypeInfo): u128 acquires SplitsStorage {
+    public fun splittable(account_id: u256, fa_metadata: address): u128 acquires SplitsStorage {
         let storage = borrow_global<SplitsStorage>(@xylkstream);
 
         if (!storage.states.contains(account_id)) {
@@ -159,20 +158,20 @@ module xylkstream::splits {
 
         let state = storage.states.borrow(account_id);
 
-        if (!state.balances.contains(token_type)) {
+        if (!state.balances.contains(fa_metadata)) {
             return 0
         };
 
-        state.balances.borrow(token_type).splittable
+        state.balances.borrow(fa_metadata).splittable
     }
 
     /// Returns account's received funds already split and ready to be collected.
     ///
     /// `account_id`: The account ID\
-    /// `token_type`: The token type
+    /// `fa_metadata`: The address of FA in use\
     ///
     /// Returns: The collectable amount
-    public fun collectable(account_id: u256, token_type: TypeInfo): u128 acquires SplitsStorage {
+    public fun collectable(account_id: u256, fa_metadata: address): u128 acquires SplitsStorage {
         let storage = borrow_global<SplitsStorage>(@xylkstream);
 
         if (!storage.states.contains(account_id)) {
@@ -181,21 +180,21 @@ module xylkstream::splits {
 
         let state = storage.states.borrow(account_id);
 
-        if (!state.balances.contains(token_type)) {
+        if (!state.balances.contains(fa_metadata)) {
             return 0
         };
 
-        state.balances.borrow(token_type).collectable
+        state.balances.borrow(fa_metadata).collectable
     }
 
     /// Collects account's received already split funds.
     /// Resets the collectable balance to 0 and returns the collected amount.
     ///
     /// `account_id`: The account ID\
-    /// `token_type`: The token type
+    /// `fa_metadata`: The address of FA in use\
     ///
     /// Returns: The collected amount
-    public(friend) fun collect(account_id: u256, token_type: TypeInfo): u128 acquires SplitsStorage {
+    public(friend) fun collect(account_id: u256, fa_metadata: address): u128 acquires SplitsStorage {
         let storage = borrow_global_mut<SplitsStorage>(@xylkstream);
 
         if (!storage.states.contains(account_id)) {
@@ -204,11 +203,11 @@ module xylkstream::splits {
 
         let state = storage.states.borrow_mut(account_id);
 
-        if (!state.balances.contains(token_type)) {
+        if (!state.balances.contains(fa_metadata)) {
             return 0
         };
 
-        let balance = state.balances.borrow_mut(token_type);
+        let balance = state.balances.borrow_mut(fa_metadata);
         let amt = balance.collectable;
         balance.collectable = 0;
 
@@ -221,15 +220,15 @@ module xylkstream::splits {
     ///
     /// `account_id`: The giving account ID (for event tracking)
     /// `receiver`: The receiver account ID\
-    /// `token_type`: The token type\
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to give
     public(friend) fun give(
         _account_id: u256,
         receiver: u256,
-        token_type: TypeInfo,
+        fa_metadata: address,
         amt: u128
     ) acquires SplitsStorage {
-        add_splittable(receiver, token_type, amt);
+        add_splittable(receiver, fa_metadata, amt);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -276,14 +275,14 @@ module xylkstream::splits {
     /// All split funds are split using the current splits configuration.
     ///
     /// `account_id`: The account ID\
-    /// `token_type`: The token type\
+    /// `fa_metadata`: The address of FA in use\
     /// `curr_receivers`: The list of the account's current splits receivers
     ///
     /// Returns: (collectable_amt, split_amt)
     ///   - collectable_amt: Amount made collectable for the account
     ///   - split_amt: Amount split to receivers
     public(friend) fun split(
-        account_id: u256, token_type: TypeInfo, curr_receivers: &vector<SplitsReceiver>
+        account_id: u256, fa_metadata: address, curr_receivers: &vector<SplitsReceiver>
     ): (u128, u128) acquires SplitsStorage {
         assert_curr_splits(account_id, curr_receivers);
 
@@ -291,9 +290,9 @@ module xylkstream::splits {
         ensure_state_exists(&mut storage.states, account_id);
 
         let state = storage.states.borrow_mut(account_id);
-        ensure_balance_exists(&mut state.balances, token_type);
+        ensure_balance_exists(&mut state.balances, fa_metadata);
 
-        let balance = state.balances.borrow_mut(token_type);
+        let balance = state.balances.borrow_mut(fa_metadata);
         let collectable_amt = balance.splittable;
 
         if (collectable_amt == 0) {
@@ -325,8 +324,8 @@ module xylkstream::splits {
             if (curr_split_amt > 0) {
                 ensure_state_exists(&mut storage.states, receiver.account_id);
                 let receiver_state = storage.states.borrow_mut(receiver.account_id);
-                ensure_balance_exists(&mut receiver_state.balances, token_type);
-                let receiver_balance = receiver_state.balances.borrow_mut(token_type);
+                ensure_balance_exists(&mut receiver_state.balances, fa_metadata);
+                let receiver_balance = receiver_state.balances.borrow_mut(fa_metadata);
                 receiver_balance.splittable += curr_split_amt;
             };
 
@@ -338,7 +337,7 @@ module xylkstream::splits {
 
         // Re-borrow after mutations
         let state = storage.states.borrow_mut(account_id);
-        let balance = state.balances.borrow_mut(token_type);
+        let balance = state.balances.borrow_mut(fa_metadata);
         balance.collectable += collectable_amt;
 
         (collectable_amt, split_amt)

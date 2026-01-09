@@ -1,7 +1,6 @@
 module xylkstream::streams {
     use aptos_std::smart_table::{Self, SmartTable};
     use aptos_framework::timestamp;
-    use std::type_info::TypeInfo;
     use std::vector;
     use std::bcs;
     use aptos_std::aptos_hash;
@@ -11,6 +10,7 @@ module xylkstream::streams {
     friend xylkstream::drips;
 
     // ═══════════════════════════════════════════════════════════════════════════════
+    //                              CONSTANTS
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Maximum number of streams receivers of a single account
@@ -67,9 +67,9 @@ module xylkstream::streams {
         states: SmartTable<StreamsStateKey, StreamsState>
     }
 
-    /// Composite key for nested mapping: token_type -> account_id -> state
+    /// Composite key: fa_metadata -> account_id -> state
     struct StreamsStateKey has copy, drop, store {
-        token_type: TypeInfo,
+        fa_metadata: address,
         account_id: u256
     }
 
@@ -485,29 +485,28 @@ module xylkstream::streams {
         let multiplier = i256::from((AMT_PER_SEC_MULTIPLIER as u256));
 
         let cycle_secs_i256 = i256::from_u64(cycle_secs);
-        let full_cycle = i256::div(&i256::mul(&cycle_secs_i256, &amt_per_sec), &multiplier);
-        
+        let full_cycle = i256::div(
+            &i256::mul(&cycle_secs_i256, &amt_per_sec), &multiplier
+        );
         let remainder = timestamp % cycle_secs;
         let remainder_i256 = i256::from_u64(remainder);
-        let next_cycle = i256::div(&i256::mul(&remainder_i256, &amt_per_sec), &multiplier);
-
+        let next_cycle = i256::div(
+            &i256::mul(&remainder_i256, &amt_per_sec), &multiplier
+        );
         let cycle = cycle_of(timestamp, cycle_secs);
 
         if (!amt_deltas.contains(cycle)) {
-            amt_deltas.add(cycle, AmtDelta { this_cycle: i128::zero(), next_cycle: i128::zero() });
+            amt_deltas.add(
+                cycle, AmtDelta {
+                    this_cycle: i128::zero(),
+                    next_cycle: i128::zero()
+                }
+            );
         };
-
         let delta = amt_deltas.borrow_mut(cycle);
-
-        // Convert i256 results to i128 for storage
         let this_cycle_delta = i256::sub(&full_cycle, &next_cycle);
-        let this_cycle_i128_bits = i256::as_i128(&this_cycle_delta);
-        let next_cycle_i128_bits = i256::as_i128(&next_cycle);
-        
-        // Add to existing deltas
-        let this_cycle_to_add = i128::from_bits(this_cycle_i128_bits);
-        let next_cycle_to_add = i128::from_bits(next_cycle_i128_bits);
-        
+        let this_cycle_to_add = i128::from_bits(i256::as_i128(&this_cycle_delta));
+        let next_cycle_to_add = i128::from_bits(i256::as_i128(&next_cycle));
         delta.this_cycle = i128::add(&delta.this_cycle, &this_cycle_to_add);
         delta.next_cycle = i128::add(&delta.next_cycle, &next_cycle_to_add);
     }
@@ -543,7 +542,7 @@ module xylkstream::streams {
     /// Applies the effects of streams configuration changes on receivers' states
     /// Uses a two-pointer merge approach to efficiently diff old vs new receivers
     /// `states`: The streams states table for the token
-    /// `token_type`: The token type being streamed
+    /// `fa_metadata`: The address of FA in use
     /// `curr_receivers`: Current receivers list (empty if first update)
     /// `last_update`: Last time sender updated streams (0 if first update)
     /// `curr_max_end`: Max end time from last update
@@ -552,7 +551,7 @@ module xylkstream::streams {
     /// `cycle_secs`: The cycle length in seconds
     fun update_receiver_states(
         states: &mut SmartTable<StreamsStateKey, StreamsState>,
-        token_type: std::type_info::TypeInfo,
+        fa_metadata: address,
         curr_receivers: &vector<StreamReceiver>,
         last_update: u64,
         curr_max_end: u64,
@@ -613,7 +612,7 @@ module xylkstream::streams {
             if (pick_curr && pick_new) {
                 // Shift existing stream to fulfil new configuration
                 let state_key =
-                    StreamsStateKey { token_type, account_id: curr_recv.account_id };
+                    StreamsStateKey { fa_metadata, account_id: curr_recv.account_id };
                 ensure_state_exists(states, state_key);
                 let state = states.borrow_mut(state_key);
 
@@ -668,7 +667,7 @@ module xylkstream::streams {
             } else if (pick_curr) {
                 // Remove an existing stream
                 let state_key =
-                    StreamsStateKey { token_type, account_id: curr_recv.account_id };
+                    StreamsStateKey { fa_metadata, account_id: curr_recv.account_id };
                 ensure_state_exists(states, state_key);
                 let state = states.borrow_mut(state_key);
 
@@ -688,7 +687,7 @@ module xylkstream::streams {
             } else if (pick_new) {
                 // Create a new stream
                 let state_key =
-                    StreamsStateKey { token_type, account_id: new_recv.account_id };
+                    StreamsStateKey { fa_metadata, account_id: new_recv.account_id };
                 ensure_state_exists(states, state_key);
                 let state = states.borrow_mut(state_key);
 
@@ -742,18 +741,18 @@ module xylkstream::streams {
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Returns the account's streams balance at a given timestamp
-    /// `token_type`: The token type being streamed
+    /// `fa_metadata`: The address of FA in use
     /// `account_id`: The account ID
     /// `curr_receivers`: Current receivers list (must match stored hash)
     /// `timestamp`: The timestamp to calculate balance at (must be >= update_time)
     public fun balance_at(
-        token_type: std::type_info::TypeInfo,
+        fa_metadata: address,
         account_id: u256,
         curr_receivers: &vector<StreamReceiver>,
         timestamp: u64
     ): u128 acquires StreamsStorage {
         let storage = borrow_global<StreamsStorage>(@xylkstream);
-        let state_key = StreamsStateKey { token_type, account_id };
+        let state_key = StreamsStateKey { fa_metadata, account_id };
 
         // Non-existent account = 0 balance
         if (!storage.states.contains(state_key)) {
@@ -823,8 +822,6 @@ module xylkstream::streams {
     ): u64 acquires StreamsStorage {
         let configs = build_configs(receivers);
         let configs_len = configs.length();
-
-        // Using better variable names per Notes.md
         let min_guaranteed_end = curr_timestamp();
 
         // No configs or zero balance = end now
@@ -838,23 +835,23 @@ module xylkstream::streams {
             return max_possible_end
         };
 
-        // Apply hints to narrow search range
-        let enough_end = min_guaranteed_end;
-        let not_enough_end = max_possible_end;
+        // Use u256 for arithmetic to avoid overflow (like Solidity uses uint256)
+        let enough_end: u256 = (min_guaranteed_end as u256);
+        let not_enough_end: u256 = (max_possible_end as u256);
 
-        if (hint1 > enough_end && hint1 < not_enough_end) {
+        if ((hint1 as u256) > enough_end && (hint1 as u256) < not_enough_end) {
             if (is_balance_enough(balance, &configs, hint1)) {
-                enough_end = hint1;
+                enough_end = (hint1 as u256);
             } else {
-                not_enough_end = hint1;
+                not_enough_end = (hint1 as u256);
             };
         };
 
-        if (hint2 > enough_end && hint2 < not_enough_end) {
+        if ((hint2 as u256) > enough_end && (hint2 as u256) < not_enough_end) {
             if (is_balance_enough(balance, &configs, hint2)) {
-                enough_end = hint2;
+                enough_end = (hint2 as u256);
             } else {
-                not_enough_end = hint2;
+                not_enough_end = (hint2 as u256);
             };
         };
 
@@ -862,9 +859,9 @@ module xylkstream::streams {
         loop {
             let mid = (enough_end + not_enough_end) / 2;
             if (mid == enough_end) {
-                return mid
+                return (mid as u64)
             };
-            if (is_balance_enough(balance, &configs, mid)) {
+            if (is_balance_enough(balance, &configs, (mid as u64))) {
                 enough_end = mid;
             } else {
                 not_enough_end = mid;
@@ -918,10 +915,10 @@ module xylkstream::streams {
     /// Returns the number of cycles from which streams can be collected.
     /// Useful to detect if there are too many cycles to analyze in a single transaction.
     public fun receivable_streams_cycles(
-        account_id: u256, token_type: std::type_info::TypeInfo
+        account_id: u256, fa_metadata: address
     ): u64 acquires StreamsStorage {
         let (from_cycle, to_cycle) =
-            receivable_streams_cycles_range(token_type, account_id);
+            receivable_streams_cycles_range(fa_metadata, account_id);
         if (to_cycle > from_cycle) {
             to_cycle - from_cycle
         } else { 0 }
@@ -929,10 +926,10 @@ module xylkstream::streams {
 
     /// Returns (from_cycle, to_cycle) range for receivable streams
     fun receivable_streams_cycles_range(
-        token_type: std::type_info::TypeInfo, account_id: u256
+        fa_metadata: address, account_id: u256
     ): (u64, u64) acquires StreamsStorage {
         let storage = borrow_global<StreamsStorage>(@xylkstream);
-        let state_key = StreamsStateKey { token_type, account_id };
+        let state_key = StreamsStateKey { fa_metadata, account_id };
 
         if (!storage.states.contains(state_key)) {
             return (0, 0)
@@ -950,7 +947,7 @@ module xylkstream::streams {
     }
 
     /// Calculate effects of calling `receive_streams` with the given parameters
-    /// `token_type`: The token type being streamed
+    /// `fa_metadata`: The address of FA in use
     /// `account_id`: The account ID
     /// `max_cycles`: Maximum number of cycles to process
     /// Returns: (received_amt, receivable_cycles, from_cycle, to_cycle, amt_per_cycle)
@@ -960,10 +957,10 @@ module xylkstream::streams {
     ///   - to_cycle: Ending cycle of reception
     ///   - amt_per_cycle: Running amount per cycle at to_cycle (for delta adjustment)
     public fun receive_streams_result(
-        token_type: std::type_info::TypeInfo, account_id: u256, max_cycles: u64
+        fa_metadata: address, account_id: u256, max_cycles: u64
     ): (u128, u64, u64, u64, I128) acquires StreamsStorage {
         let (from_cycle, to_cycle_raw) =
-            receivable_streams_cycles_range(token_type, account_id);
+            receivable_streams_cycles_range(fa_metadata, account_id);
 
         // Cap cycles to max_cycles
         let (receivable_cycles, to_cycle) =
@@ -975,7 +972,7 @@ module xylkstream::streams {
             };
 
         let storage = borrow_global<StreamsStorage>(@xylkstream);
-        let state_key = StreamsStateKey { token_type, account_id };
+        let state_key = StreamsStateKey { fa_metadata, account_id };
 
         let received_amt: u128 = 0;
         let amt_per_cycle: I128 = i128::zero();
@@ -1006,7 +1003,7 @@ module xylkstream::streams {
 
     /// Receive streams from unreceived cycles of the account.
     /// Received streams cycles won't need to be analyzed ever again.\
-    /// `token_type`: The token type being streamed\
+    /// `fa_metadata`: The address of FA in use\
     /// `account_id`: The account ID\
     /// `max_cycles`: Maximum number of cycles to process
     ///   - Low value: cheaper but may not cover many cycles
@@ -1014,14 +1011,14 @@ module xylkstream::streams {
     ///
     /// Returns: `received_amt` - The amount received
     public(friend) fun receive_streams(
-        token_type: std::type_info::TypeInfo, account_id: u256, max_cycles: u64
+        fa_metadata: address, account_id: u256, max_cycles: u64
     ): u128 acquires StreamsStorage {
         let (received_amt, _receivable_cycles, from_cycle, to_cycle, final_amt_per_cycle) =
-            receive_streams_result(token_type, account_id, max_cycles);
+            receive_streams_result(fa_metadata, account_id, max_cycles);
 
         if (from_cycle != to_cycle) {
             let storage = borrow_global_mut<StreamsStorage>(@xylkstream);
-            let state_key = StreamsStateKey { token_type, account_id };
+            let state_key = StreamsStateKey { fa_metadata, account_id };
 
             ensure_state_exists(&mut storage.states, state_key);
             let state = storage.states.borrow_mut(state_key);
@@ -1043,7 +1040,11 @@ module xylkstream::streams {
             if (!i128::is_zero(&final_amt_per_cycle)) {
                 if (!state.amt_deltas.contains(to_cycle)) {
                     state.amt_deltas.add(
-                        to_cycle, AmtDelta { this_cycle: i128::zero(), next_cycle: i128::zero() }
+                        to_cycle,
+                        AmtDelta {
+                            this_cycle: i128::zero(),
+                            next_cycle: i128::zero()
+                        }
                     );
                 };
                 let delta = state.amt_deltas.borrow_mut(to_cycle);
@@ -1064,7 +1065,7 @@ module xylkstream::streams {
     /// Only funds streamed before current timestamp can be squeezed.
     ///
     /// `account_id`: The ID of the account receiving streams to squeeze funds for\
-    /// `token_type`: The token type being streamed\
+    /// `fa_metadata`: The address of FA in use
     /// `sender_id`: The ID of the streaming account to squeeze funds from\
     /// `history_hash`: The sender's history hash valid right before `streams_history`\
     /// `streams_history`: The sequence of the sender's streams configurations
@@ -1072,7 +1073,7 @@ module xylkstream::streams {
     /// Returns: `amt` - The squeezed amount
     public(friend) fun squeeze_streams(
         account_id: u256,
-        token_type: std::type_info::TypeInfo,
+        fa_metadata: address,
         sender_id: u256,
         history_hash: vector<u8>,
         streams_history: &vector<StreamsHistory>
@@ -1080,7 +1081,7 @@ module xylkstream::streams {
         let (amt, squeezed_indexes, _history_hashes, curr_cycle_configs) =
             squeeze_streams_result(
                 account_id,
-                token_type,
+                fa_metadata,
                 sender_id,
                 history_hash,
                 streams_history
@@ -1088,7 +1089,7 @@ module xylkstream::streams {
 
         let storage = borrow_global_mut<StreamsStorage>(@xylkstream);
         let cycle_secs = storage.cycle_secs;
-        let state_key = StreamsStateKey { token_type, account_id };
+        let state_key = StreamsStateKey { fa_metadata, account_id };
         ensure_state_exists(&mut storage.states, state_key);
         let state = storage.states.borrow_mut(state_key);
 
@@ -1131,7 +1132,7 @@ module xylkstream::streams {
     /// Calculate effects of calling `squeeze_streams` with the given parameters.
     ///
     /// `account_id`: The ID of the account receiving streams to squeeze funds for
-    /// `token_type`: The token type being streamed
+    /// `fa_metadata`: The address of FA in use
     /// `sender_id`: The ID of the streaming account to squeeze funds from
     /// `history_hash`: The sender's history hash valid right before `streams_history`
     /// `streams_history`: The sequence of the sender's streams configurations
@@ -1143,14 +1144,14 @@ module xylkstream::streams {
     ///   - `curr_cycle_configs`: Number of sender's configs seen in current cycle
     public fun squeeze_streams_result(
         account_id: u256,
-        token_type: std::type_info::TypeInfo,
+        fa_metadata: address,
         sender_id: u256,
         history_hash: vector<u8>,
         streams_history: &vector<StreamsHistory>
     ): (u128, vector<u64>, vector<vector<u8>>, u64) acquires StreamsStorage {
         let storage = borrow_global<StreamsStorage>(@xylkstream);
         let cycle_secs = storage.cycle_secs;
-        let sender_key = StreamsStateKey { token_type, account_id: sender_id };
+        let sender_key = StreamsStateKey { fa_metadata, account_id: sender_id };
 
         // Get sender's final history hash for verification
         let final_history_hash =
@@ -1178,7 +1179,7 @@ module xylkstream::streams {
             } else { 1 };
 
         // Get receiver's next_squeezed mapping
-        let receiver_key = StreamsStateKey { token_type, account_id };
+        let receiver_key = StreamsStateKey { fa_metadata, account_id };
 
         let amt: u128 = 0;
         let squeezed_indexes = vector::empty<u64>();
@@ -1298,7 +1299,7 @@ module xylkstream::streams {
     /// Main entry point to configure streams.
     ///
     /// `account_id`: The account ID\
-    /// `token_type`: The token type being streamed\
+    /// `fa_metadata`: The address of FA in use
     /// `curr_receivers`: Current streams receivers list (must match stored hash, empty if first update)\
     /// `balance_delta`: Balance change (positive to add funds, negative to withdraw)\
     /// `new_receivers`: New receivers list (must be sorted, deduplicated, no zero amt_per_sec)\
@@ -1308,7 +1309,7 @@ module xylkstream::streams {
     /// Returns: `real_balance_delta` - The actually applied balance change
     public(friend) fun set_streams(
         account_id: u256,
-        token_type: std::type_info::TypeInfo,
+        fa_metadata: address,
         curr_receivers: &vector<StreamReceiver>,
         balance_delta: I128,
         new_receivers: &vector<StreamReceiver>,
@@ -1328,7 +1329,7 @@ module xylkstream::streams {
             old_curr_cycle_configs
         ) = {
             let storage = borrow_global<StreamsStorage>(@xylkstream);
-            let state_key = StreamsStateKey { token_type, account_id };
+            let state_key = StreamsStateKey { fa_metadata, account_id };
 
             if (!storage.states.contains(state_key)) {
                 (0u128, 0u64, 0u64, vector::empty<u8>(), 0u64)
@@ -1355,7 +1356,7 @@ module xylkstream::streams {
 
         // Cap balance_delta at withdrawal of entire balance
         let neg_curr_balance = i128::neg_from(curr_balance);
-        let real_balance_delta = 
+        let real_balance_delta =
             if (i128::compare(&balance_delta, &neg_curr_balance) == 1) { // balance_delta < neg_curr_balance
                 neg_curr_balance
             } else {
@@ -1382,13 +1383,13 @@ module xylkstream::streams {
 
         // Now borrow storage mutably for updates
         let storage = borrow_global_mut<StreamsStorage>(@xylkstream);
-        let state_key = StreamsStateKey { token_type, account_id };
+        let state_key = StreamsStateKey { fa_metadata, account_id };
         ensure_state_exists(&mut storage.states, state_key);
 
         // Update receiver states (apply deltas)
         update_receiver_states(
             &mut storage.states,
-            token_type,
+            fa_metadata,
             curr_receivers,
             last_update,
             curr_max_end,
@@ -1439,14 +1440,14 @@ module xylkstream::streams {
     /// Returns the current streams state for an account
     ///
     /// `account_id`: The account ID\
-    /// `token_type`: The token type
+    /// `fa_metadata`: The address of FA in use
     ///
     /// Returns: (streams_hash, streams_history_hash, update_time, balance, max_end)
     public fun streams_state(
-        account_id: u256, token_type: std::type_info::TypeInfo
+        account_id: u256, fa_metadata: address
     ): (vector<u8>, vector<u8>, u64, u128, u64) acquires StreamsStorage {
         let storage = borrow_global<StreamsStorage>(@xylkstream);
-        let state_key = StreamsStateKey { token_type, account_id };
+        let state_key = StreamsStateKey { fa_metadata, account_id };
 
         if (!storage.states.contains(state_key)) {
             return (vector::empty<u8>(), vector::empty<u8>(), 0, 0, 0)

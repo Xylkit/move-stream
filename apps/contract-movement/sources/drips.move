@@ -1,6 +1,5 @@
 module xylkstream::drips {
     use aptos_std::smart_table::{Self, SmartTable};
-    use aptos_std::type_info::TypeInfo;
     use aptos_framework::account::{Self, SignerCapability};
     use aptos_framework::event;
     use aptos_framework::object;
@@ -8,6 +7,7 @@ module xylkstream::drips {
     use aptos_framework::primary_fungible_store;
     use xylkstream::streams;
     use xylkstream::splits;
+    use xylkstream::driver_utils::{Self, AccountMetadata};
     use movemate::i128::{Self, I128};
 
     friend xylkstream::address_driver;
@@ -61,7 +61,7 @@ module xylkstream::drips {
     /// Global storage - lives at @xylkstream
     struct DripsStorage has key {
         /// The balance of each token currently stored in the protocol.
-        balances: SmartTable<TypeInfo, Balance>,
+        balances: SmartTable<address, Balance>,
         /// Signer capability for the resource account that holds tokens
         signer_cap: SignerCapability,
         /// Address of the resource account (cached for convenience)
@@ -76,26 +76,9 @@ module xylkstream::drips {
         splits: u128
     }
 
-    /// Account metadata key-value pair.
-    struct AccountMetadata has copy, drop, store {
-        /// The metadata key
-        key: vector<u8>,
-        /// The metadata value
-        value: vector<u8>
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    //                              CONSTRUCTORS
-    // ═══════════════════════════════════════════════════════════════════════════════
-
-    /// Creates a new AccountMetadata
-    public fun new_account_metadata(key: vector<u8>, value: vector<u8>): AccountMetadata {
-        AccountMetadata { key, value }
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════════
     //                                  EVENTS
-    // ═══════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════════
 
     #[event]
     /// Emitted by the account to broadcast metadata.
@@ -131,27 +114,24 @@ module xylkstream::drips {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    //                           HELPER FUNCTIONS
+    //                           INTERNAL HELPERS
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Ensures a Balance entry exists for the given token type
     fun ensure_balance_exists(
-        balances_table: &mut SmartTable<TypeInfo, Balance>, token_type: TypeInfo
+        balances_table: &mut SmartTable<address, Balance>, fa_metadata: address
     ) {
-        if (!balances_table.contains(token_type)) {
-            balances_table.add(token_type, Balance { streams: 0, splits: 0 });
+        if (!balances_table.contains(fa_metadata)) {
+            balances_table.add(fa_metadata, Balance { streams: 0, splits: 0 });
         };
     }
 
     /// Returns the token balance held by the Drips vault (resource account).
     /// Assumes token_type points to a Fungible Asset metadata.
-    fun token_balance(token_type: TypeInfo): u128 acquires DripsStorage {
+    fun token_balance(fa_metadata: address): u128 acquires DripsStorage {
         let storage = borrow_global<DripsStorage>(@xylkstream);
-        let vault_address = storage.vault_address;
-        let token_address = token_type.account_address();
-
-        let metadata = object::address_to_object<Metadata>(token_address);
-        (primary_fungible_store::balance(vault_address, metadata) as u128)
+        let metadata = object::address_to_object<Metadata>(fa_metadata);
+        (primary_fungible_store::balance(storage.vault_address, metadata) as u128)
     }
 
     /// Returns the vault address where tokens are held
@@ -166,17 +146,15 @@ module xylkstream::drips {
     /// Returns the amount currently stored in the protocol of the given token.
     /// The sum of streaming and splitting balances can never exceed `MAX_TOTAL_BALANCE`.
     ///
-    /// `token_type`: The TypeInfo of the token
+    /// `fa_metadata`: The address of FA in use
     ///
     /// Returns: (streams_balance, splits_balance)
-    public fun balances(token_type: TypeInfo): (u128, u128) acquires DripsStorage {
+    public fun balances(fa_metadata: address): (u128, u128) acquires DripsStorage {
         let storage = borrow_global<DripsStorage>(@xylkstream);
-
-        if (!storage.balances.contains(token_type)) {
+        if (!storage.balances.contains(fa_metadata)) {
             return (0, 0)
         };
-
-        let balance = storage.balances.borrow(token_type);
+        let balance = storage.balances.borrow(fa_metadata);
         (balance.streams, balance.splits)
     }
 
@@ -185,17 +163,14 @@ module xylkstream::drips {
     /// The new total balance is verified to have coverage in the held tokens\
     /// and to be within the limit of `MAX_TOTAL_BALANCE`.
     ///
-    /// `token_type`: The TypeInfo of the token\
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to increase the streams balance by
-    fun increase_streams_balance(token_type: TypeInfo, amt: u128) acquires DripsStorage {
+    fun increase_streams_balance(fa_metadata: address, amt: u128) acquires DripsStorage {
         if (amt == 0) { return };
-
-        verify_balance_increase(token_type, amt);
-
+        verify_balance_increase(fa_metadata, amt);
         let storage = borrow_global_mut<DripsStorage>(@xylkstream);
-        ensure_balance_exists(&mut storage.balances, token_type);
-
-        let balance = storage.balances.borrow_mut(token_type);
+        ensure_balance_exists(&mut storage.balances, fa_metadata);
+        let balance = storage.balances.borrow_mut(fa_metadata);
         balance.streams += amt;
     }
 
@@ -203,13 +178,12 @@ module xylkstream::drips {
     /// No funds are transferred, but the tokens held by Drips
     /// above the total balance become withdrawable.
     ///
-    /// `token_type`: The TypeInfo of the token
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to decrease the streams balance by
-    fun decrease_streams_balance(token_type: TypeInfo, amt: u128) acquires DripsStorage {
+    fun decrease_streams_balance(fa_metadata: address, amt: u128) acquires DripsStorage {
         if (amt == 0) { return };
-
         let storage = borrow_global_mut<DripsStorage>(@xylkstream);
-        let balance = storage.balances.borrow_mut(token_type);
+        let balance = storage.balances.borrow_mut(fa_metadata);
         balance.streams -= amt;
     }
 
@@ -218,17 +192,14 @@ module xylkstream::drips {
     /// The new total balance is verified to have coverage in the held tokens
     /// and to be within the limit of `MAX_TOTAL_BALANCE`.
     ///
-    /// `token_type`: The TypeInfo of the token
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to increase the splits balance by
-    fun increase_splits_balance(token_type: TypeInfo, amt: u128) acquires DripsStorage {
+    fun increase_splits_balance(fa_metadata: address, amt: u128) acquires DripsStorage {
         if (amt == 0) { return };
-
-        verify_balance_increase(token_type, amt);
-
+        verify_balance_increase(fa_metadata, amt);
         let storage = borrow_global_mut<DripsStorage>(@xylkstream);
-        ensure_balance_exists(&mut storage.balances, token_type);
-
-        let balance = storage.balances.borrow_mut(token_type);
+        ensure_balance_exists(&mut storage.balances, fa_metadata);
+        let balance = storage.balances.borrow_mut(fa_metadata);
         balance.splits += amt;
     }
 
@@ -236,13 +207,12 @@ module xylkstream::drips {
     /// No funds are transferred, but the tokens held by Drips
     /// above the total balance become withdrawable.
     ///
-    /// `token_type`: The TypeInfo of the token
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to decrease the splits balance by
-    fun decrease_splits_balance(token_type: TypeInfo, amt: u128) acquires DripsStorage {
+    fun decrease_splits_balance(fa_metadata: address, amt: u128) acquires DripsStorage {
         if (amt == 0) { return };
-
         let storage = borrow_global_mut<DripsStorage>(@xylkstream);
-        let balance = storage.balances.borrow_mut(token_type);
+        let balance = storage.balances.borrow_mut(fa_metadata);
         balance.splits -= amt;
     }
 
@@ -250,15 +220,14 @@ module xylkstream::drips {
     /// No funds are transferred, all the tokens are already held by Drips.
     /// Used when streams are received and become splittable.
     ///
-    /// `token_type`: The TypeInfo of the token
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to move from streams to splits
     fun move_balance_from_streams_to_splits(
-        token_type: TypeInfo, amt: u128
+        fa_metadata: address, amt: u128
     ) acquires DripsStorage {
         if (amt == 0) { return };
-
         let storage = borrow_global_mut<DripsStorage>(@xylkstream);
-        let balance = storage.balances.borrow_mut(token_type);
+        let balance = storage.balances.borrow_mut(fa_metadata);
         balance.streams -= amt;
         balance.splits += amt;
     }
@@ -267,10 +236,10 @@ module xylkstream::drips {
     /// The sum of streaming and splitting balances is checked to not exceed
     /// `MAX_TOTAL_BALANCE` or the amount of tokens held by Drips.
     ///
-    /// `token_type`: The TypeInfo of the token
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to increase the streams or splits balance by
-    public fun verify_balance_increase(token_type: TypeInfo, amt: u128) acquires DripsStorage {
-        let (streams_balance, splits_balance) = balances(token_type);
+    public fun verify_balance_increase(fa_metadata: address, amt: u128) acquires DripsStorage {
+        let (streams_balance, splits_balance) = balances(fa_metadata);
         let new_total_balance =
             (streams_balance as u256) + (splits_balance as u256) + (amt as u256);
 
@@ -280,7 +249,7 @@ module xylkstream::drips {
         );
 
         // Check against actual token balance held by the contract
-        let held_balance = token_balance(token_type);
+        let held_balance = token_balance(fa_metadata);
         assert!(new_total_balance <= (held_balance as u256), E_TOKEN_BALANCE_TOO_LOW);
     }
 
@@ -290,28 +259,23 @@ module xylkstream::drips {
     /// Anybody can call `withdraw`, so all withdrawable funds should be withdrawn
     /// or used in the protocol before any 3rd parties have a chance to do that.
     ///
-    /// `token_type`: The TypeInfo of the token (either Coin type or FA Metadata address)
+    /// `fa_metadata`: The address of FA in use\
     /// `receiver`: The address to send withdrawn funds to
     /// `amt`: The withdrawn amount. Must be at most the difference between
     ///        the balance held by Drips and the sum of balances managed by the protocol.
-    public fun withdraw(
-        token_type: TypeInfo, receiver: address, amt: u128
+    public(friend) fun withdraw(
+        fa_metadata: address, receiver: address, amt: u128
     ) acquires DripsStorage {
-        let (streams_balance, splits_balance) = balances(token_type);
-        let held_balance = token_balance(token_type);
-
+        let (streams_balance, splits_balance) = balances(fa_metadata);
+        let held_balance = token_balance(fa_metadata);
         let managed_balance = streams_balance + splits_balance;
         let withdrawable = held_balance - managed_balance;
-
         assert!(amt <= withdrawable, E_WITHDRAWAL_AMOUNT_TOO_HIGH);
 
         // Get the vault signer to transfer tokens
         let storage = borrow_global<DripsStorage>(@xylkstream);
         let vault_signer = account::create_signer_with_capability(&storage.signer_cap);
-
-        // Transfer FA tokens from vault to receiver
-        let token_address = token_type.account_address();
-        let metadata = object::address_to_object<Metadata>(token_address);
+        let metadata = object::address_to_object<Metadata>(fa_metadata);
         primary_fungible_store::transfer(&vault_signer, metadata, receiver, (amt as u64));
     }
 
@@ -319,101 +283,92 @@ module xylkstream::drips {
     //                           STREAMS OPERATIONS
     // ═══════════════════════════════════════════════════════════════════════════════
 
-    /// Counts cycles from which streams can be collected.
-    /// Useful to detect if there are too many cycles to analyze in a single transaction.
-    public fun receivable_streams_cycles(
-        account_id: u256, token_type: TypeInfo
-    ): u64 {
-        streams::receivable_streams_cycles(account_id, token_type)
-    }
-
-    /// Calculate effects of calling `receive_streams` with the given parameters.
-    /// Returns: (receivable_amt, receivable_cycles, from_cycle, to_cycle, amt_per_cycle)
-    public fun receive_streams_result(
-        account_id: u256, token_type: TypeInfo, max_cycles: u64
-    ): (u128, u64, u64, u64, I128) {
-        streams::receive_streams_result(token_type, account_id, max_cycles)
-    }
-
-    /// Receive streams for the account.
-    /// Received streams cycles won't need to be analyzed ever again.
-    /// Calling this function does not collect but makes the funds ready to be split and collected.
-    public fun receive_streams(
-        account_id: u256, token_type: TypeInfo, max_cycles: u64
-    ): u128 acquires DripsStorage {
-        let received_amt = streams::receive_streams(token_type, account_id, max_cycles);
+    /// Receives streams for an account from completed cycles.
+    /// Anyone can call this for any account - caller pays gas, account benefits.
+    public entry fun receive_streams(
+        account_id: u256, fa_metadata: address, max_cycles: u64
+    ) acquires DripsStorage {
+        let received_amt = streams::receive_streams(fa_metadata, account_id, max_cycles);
         if (received_amt != 0) {
-            move_balance_from_streams_to_splits(token_type, received_amt);
-            splits::add_splittable(account_id, token_type, received_amt);
+            move_balance_from_streams_to_splits(fa_metadata, received_amt);
+            splits::add_splittable(account_id, fa_metadata, received_amt);
         };
-        received_amt
     }
 
-    /// Calculate effects of calling `squeeze_streams` with the given parameters.
-    /// Returns: (amt, squeezed_indexes, history_hashes, curr_cycle_configs)
+    #[view]
     public fun squeeze_streams_result(
         account_id: u256,
-        token_type: TypeInfo,
+        fa_metadata: address,
         sender_id: u256,
         history_hash: vector<u8>,
-        streams_history: &vector<streams::StreamsHistory>
+        history_streams_hashes: vector<vector<u8>>,
+        history_receiver_account_ids: vector<vector<u256>>,
+        history_receiver_stream_ids: vector<vector<u64>>,
+        history_receiver_amt_per_secs: vector<vector<u256>>,
+        history_receiver_starts: vector<vector<u64>>,
+        history_receiver_durations: vector<vector<u64>>,
+        history_update_times: vector<u64>,
+        history_max_ends: vector<u64>
     ): (u128, vector<u64>, vector<vector<u8>>, u64) {
+        let streams_history =
+            driver_utils::build_streams_history(
+                &history_streams_hashes,
+                &history_receiver_account_ids,
+                &history_receiver_stream_ids,
+                &history_receiver_amt_per_secs,
+                &history_receiver_starts,
+                &history_receiver_durations,
+                &history_update_times,
+                &history_max_ends
+            );
         streams::squeeze_streams_result(
             account_id,
-            token_type,
+            fa_metadata,
             sender_id,
             history_hash,
-            streams_history
+            &streams_history
         )
     }
 
-    /// Receive streams from the currently running cycle from a single sender.
-    /// It doesn't receive streams from finished cycles - use `receive_streams` for that.
-    /// Squeezed funds won't be received in subsequent calls to `squeeze_streams` or `receive_streams`.
-    /// Only funds streamed before current timestamp can be squeezed.
-    public fun squeeze_streams(
+    /// Squeezes streams from a sender during the current (incomplete) cycle.
+    /// Anyone can call this for any account - caller pays gas, account benefits.
+    public entry fun squeeze_streams(
         account_id: u256,
-        token_type: TypeInfo,
+        fa_metadata: address,
         sender_id: u256,
         history_hash: vector<u8>,
-        streams_history: &vector<streams::StreamsHistory>
-    ): u128 acquires DripsStorage {
+        history_streams_hashes: vector<vector<u8>>,
+        history_receiver_account_ids: vector<vector<u256>>,
+        history_receiver_stream_ids: vector<vector<u64>>,
+        history_receiver_amt_per_secs: vector<vector<u256>>,
+        history_receiver_starts: vector<vector<u64>>,
+        history_receiver_durations: vector<vector<u64>>,
+        history_update_times: vector<u64>,
+        history_max_ends: vector<u64>
+    ) acquires DripsStorage {
+        let streams_history =
+            driver_utils::build_streams_history(
+                &history_streams_hashes,
+                &history_receiver_account_ids,
+                &history_receiver_stream_ids,
+                &history_receiver_amt_per_secs,
+                &history_receiver_starts,
+                &history_receiver_durations,
+                &history_update_times,
+                &history_max_ends
+            );
         let amt =
             streams::squeeze_streams(
                 account_id,
-                token_type,
+                fa_metadata,
                 sender_id,
                 history_hash,
-                streams_history
+                &streams_history
             );
         if (amt != 0) {
-            move_balance_from_streams_to_splits(token_type, amt);
-            splits::add_splittable(account_id, token_type, amt);
+            move_balance_from_streams_to_splits(fa_metadata, amt);
+            splits::add_splittable(account_id, fa_metadata, amt);
         };
-        amt
-    }
-
-    /// Current account streams state.
-    /// Returns: (streams_hash, streams_history_hash, update_time, balance, max_end)
-    public fun streams_state(
-        account_id: u256, token_type: TypeInfo
-    ): (vector<u8>, vector<u8>, u64, u128, u64) {
-        streams::streams_state(account_id, token_type)
-    }
-
-    /// The account's streams balance at the given timestamp.
-    public fun balance_at(
-        account_id: u256,
-        token_type: TypeInfo,
-        curr_receivers: &vector<streams::StreamReceiver>,
-        timestamp: u64
-    ): u128 {
-        streams::balance_at(
-            token_type,
-            account_id,
-            curr_receivers,
-            timestamp
-        )
     }
 
     /// Sets the account's streams configuration.
@@ -422,7 +377,7 @@ module xylkstream::drips {
     /// If the streams balance is decreased, the released tokens become withdrawable.
     public(friend) fun set_streams(
         account_id: u256,
-        token_type: TypeInfo,
+        fa_metadata: address,
         curr_receivers: &vector<streams::StreamReceiver>,
         balance_delta: I128,
         new_receivers: &vector<streams::StreamReceiver>,
@@ -430,13 +385,13 @@ module xylkstream::drips {
         max_end_hint2: u64
     ): I128 acquires DripsStorage {
         if (!i128::is_neg(&balance_delta)) {
-            increase_streams_balance(token_type, i128::as_u128(&balance_delta));
+            increase_streams_balance(fa_metadata, i128::as_u128(&balance_delta));
         };
 
         let real_balance_delta =
             streams::set_streams(
                 account_id,
-                token_type,
+                fa_metadata,
                 curr_receivers,
                 balance_delta,
                 new_receivers,
@@ -446,7 +401,7 @@ module xylkstream::drips {
 
         if (i128::is_neg(&real_balance_delta)) {
             let abs_delta = i128::abs(&real_balance_delta);
-            decrease_streams_balance(token_type, i128::as_u128(&abs_delta));
+            decrease_streams_balance(fa_metadata, i128::as_u128(&abs_delta));
         };
 
         real_balance_delta
@@ -476,43 +431,28 @@ module xylkstream::drips {
     //                           SPLITS OPERATIONS
     // ═══════════════════════════════════════════════════════════════════════════════
 
-    /// Returns account's received but not split yet funds.
-    public fun splittable(account_id: u256, token_type: TypeInfo): u128 {
-        splits::splittable(account_id, token_type)
-    }
-
-    /// Calculate the result of splitting an amount using the current splits configuration.
-    /// Returns: (collectable_amt, split_amt)
-    public fun split_result(
-        account_id: u256, curr_receivers: &vector<splits::SplitsReceiver>, amount: u128
-    ): (u128, u128) {
-        splits::split_result(account_id, curr_receivers, amount)
-    }
-
-    /// Splits the account's splittable funds among receivers.
-    /// The entire splittable balance of the given token is split.
-    /// All split funds are split using the current splits configuration.
-    /// Returns: (collectable_amt, split_amt)
-    public fun split(
+    /// Splits an account's splittable balance according to their splits configuration.
+    /// Anyone can call this for any account - caller pays gas, account benefits.
+    public entry fun split(
         account_id: u256,
-        token_type: TypeInfo,
-        curr_receivers: &vector<splits::SplitsReceiver>
-    ): (u128, u128) {
-        splits::split(account_id, token_type, curr_receivers)
-    }
-
-    /// Returns account's received funds already split and ready to be collected.
-    public fun collectable(account_id: u256, token_type: TypeInfo): u128 {
-        splits::collectable(account_id, token_type)
+        fa_metadata: address,
+        receiver_account_ids: vector<u256>,
+        receiver_weights: vector<u32>
+    ) {
+        let receivers =
+            driver_utils::build_splits_receivers(
+                &receiver_account_ids, &receiver_weights
+            );
+        splits::split(account_id, fa_metadata, &receivers);
     }
 
     /// Collects account's received already split funds and makes them withdrawable.
     /// Anybody can call `withdraw`, so all withdrawable funds should be withdrawn
     /// or used in the protocol before any 3rd parties have a chance to do that.
-    public(friend) fun collect(account_id: u256, token_type: TypeInfo): u128 acquires DripsStorage {
-        let amt = splits::collect(account_id, token_type);
+    public(friend) fun collect(account_id: u256, fa_metadata: address): u128 acquires DripsStorage {
+        let amt = splits::collect(account_id, fa_metadata);
         if (amt != 0) {
-            decrease_splits_balance(token_type, amt);
+            decrease_splits_balance(fa_metadata, amt);
         };
         amt
     }
@@ -523,38 +463,135 @@ module xylkstream::drips {
     public(friend) fun give(
         account_id: u256,
         receiver: u256,
-        token_type: TypeInfo,
+        fa_metadata: address,
         amt: u128
     ) acquires DripsStorage {
         if (amt != 0) {
-            increase_splits_balance(token_type, amt);
+            increase_splits_balance(fa_metadata, amt);
         };
-        splits::give(account_id, receiver, token_type, amt);
+        splits::give(account_id, receiver, fa_metadata, amt);
     }
 
-    /// Sets the account splits configuration.
-    /// The configuration is common for all token types.
-    /// Nothing happens to the currently splittable funds, but when they are split
-    /// after this function finishes, the new splits configuration will be used.
     public(friend) fun set_splits(
         account_id: u256, receivers: &vector<splits::SplitsReceiver>
     ) {
         splits::set_splits(account_id, receivers)
     }
 
-    /// Current account's splits hash.
-    public fun splits_hash(account_id: u256): vector<u8> {
-        splits::splits_hash(account_id)
-    }
-
-    /// Calculates the hash of the list of splits receivers.
     public fun hash_splits(receivers: &vector<splits::SplitsReceiver>): vector<u8> {
         splits::hash_splits(receivers)
     }
 
-    /// Emits account metadata for off-chain indexing.
-    /// The keys and values are not standardized by the protocol — it's up to users
-    /// to establish conventions for compatibility with consumers.
+    // ═══════════════════════════════════════════════════════════════════════════════
+    //                           VIEW FUNCTIONS
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    #[view]
+    public fun receivable_streams_cycles(
+        account_id: u256, fa_metadata: address
+    ): u64 {
+        streams::receivable_streams_cycles(account_id, fa_metadata)
+    }
+
+    #[view]
+    public fun receive_streams_result(
+        account_id: u256, fa_metadata: address, max_cycles: u64
+    ): (u128, u64, u64, u64, I128) {
+        streams::receive_streams_result(fa_metadata, account_id, max_cycles)
+    }
+
+    #[view]
+    public fun streams_state(
+        account_id: u256, fa_metadata: address
+    ): (vector<u8>, vector<u8>, u64, u128, u64) {
+        streams::streams_state(account_id, fa_metadata)
+    }
+
+    #[view]
+    public fun balance_at(
+        account_id: u256,
+        fa_metadata: address,
+        receiver_account_ids: vector<u256>,
+        receiver_stream_ids: vector<u64>,
+        receiver_amt_per_secs: vector<u256>,
+        receiver_starts: vector<u64>,
+        receiver_durations: vector<u64>,
+        timestamp: u64
+    ): u128 {
+        let receivers =
+            driver_utils::build_stream_receivers(
+                &receiver_account_ids,
+                &receiver_stream_ids,
+                &receiver_amt_per_secs,
+                &receiver_starts,
+                &receiver_durations
+            );
+        streams::balance_at(fa_metadata, account_id, &receivers, timestamp)
+    }
+
+    #[view]
+    public fun splittable(account_id: u256, fa_metadata: address): u128 {
+        splits::splittable(account_id, fa_metadata)
+    }
+
+    #[view]
+    public fun split_result(
+        account_id: u256,
+        receiver_account_ids: vector<u256>,
+        receiver_weights: vector<u32>,
+        amount: u128
+    ): (u128, u128) {
+        let receivers =
+            driver_utils::build_splits_receivers(
+                &receiver_account_ids, &receiver_weights
+            );
+        splits::split_result(account_id, &receivers, amount)
+    }
+
+    #[view]
+    public fun collectable(account_id: u256, fa_metadata: address): u128 {
+        splits::collectable(account_id, fa_metadata)
+    }
+
+    #[view]
+    public fun splits_hash(account_id: u256): vector<u8> {
+        splits::splits_hash(account_id)
+    }
+
+    #[view]
+    public fun hash_splits_view(
+        receiver_account_ids: vector<u256>, receiver_weights: vector<u32>
+    ): vector<u8> {
+        let receivers =
+            driver_utils::build_splits_receivers(
+                &receiver_account_ids, &receiver_weights
+            );
+        splits::hash_splits(&receivers)
+    }
+
+    #[view]
+    public fun hash_streams_view(
+        receiver_account_ids: vector<u256>,
+        receiver_stream_ids: vector<u64>,
+        receiver_amt_per_secs: vector<u256>,
+        receiver_starts: vector<u64>,
+        receiver_durations: vector<u64>
+    ): vector<u8> {
+        let receivers =
+            driver_utils::build_stream_receivers(
+                &receiver_account_ids,
+                &receiver_stream_ids,
+                &receiver_amt_per_secs,
+                &receiver_starts,
+                &receiver_durations
+            );
+        streams::hash_streams(&receivers)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    //                           METADATA
+    // ═══════════════════════════════════════════════════════════════════════════════
+
     public(friend) fun emit_account_metadata(
         account_id: u256, account_metadata: vector<AccountMetadata>
     ) {
@@ -565,8 +602,8 @@ module xylkstream::drips {
             event::emit(
                 AccountMetadataEmitted {
                     account_id,
-                    key: metadata.key,
-                    value: metadata.value
+                    key: driver_utils::account_metadata_key(metadata),
+                    value: driver_utils::account_metadata_value(metadata)
                 }
             );
             i += 1;

@@ -3,7 +3,6 @@
 /// All funds going into Drips are transferred ad-hoc from the caller,
 /// and all funds going out of Drips are transferred in full to the provided address.
 module xylkstream::driver_transfer_utils {
-    use aptos_std::type_info::TypeInfo;
     use aptos_framework::object;
     use aptos_framework::fungible_asset::Metadata;
     use aptos_framework::primary_fungible_store;
@@ -19,16 +18,16 @@ module xylkstream::driver_transfer_utils {
     /// and transfers them out of the Drips contract.
     ///
     /// `account_id`: The account ID to collect for\
-    /// `token_type`: The token type (FA Metadata address)\
+    /// `fa_metadata`: The address of FA in use\
     /// `transfer_to`: The address to send collected funds to
     ///
     /// Returns: The collected amount
     public fun collect_and_transfer(
-        account_id: u256, token_type: TypeInfo, transfer_to: address
+        account_id: u256, fa_metadata: address, transfer_to: address
     ): u128 {
-        let amt = drips::collect(account_id, token_type);
+        let amt = drips::collect(account_id, fa_metadata);
         if (amt > 0) {
-            drips::withdraw(token_type, transfer_to, amt);
+            drips::withdraw(fa_metadata, transfer_to, amt);
         };
         amt
     }
@@ -40,19 +39,19 @@ module xylkstream::driver_transfer_utils {
     /// `caller`: The signer giving funds\
     /// `account_id`: The giving account ID\
     /// `receiver`: The receiver account ID\
-    /// `token_type`: The token type (FA Metadata address)\
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to give
     public fun give_and_transfer(
         caller: &signer,
         account_id: u256,
         receiver: u256,
-        token_type: TypeInfo,
+        fa_metadata: address,
         amt: u128
     ) {
         if (amt > 0) {
-            transfer_to_drips(caller, token_type, amt);
+            transfer_to_drips(caller, fa_metadata, amt);
         };
-        drips::give(account_id, receiver, token_type, amt);
+        drips::give(account_id, receiver, fa_metadata, amt);
     }
 
     /// Sets the account's streams configuration.
@@ -61,7 +60,7 @@ module xylkstream::driver_transfer_utils {
     ///
     /// `caller`: The signer setting streams\
     /// `account_id`: The account ID\
-    /// `token_type`: The token type (FA Metadata address)\
+    /// `fa_metadata`: The address of FA in use\
     /// `curr_receivers`: The current streams receivers list\
     /// `balance_delta`: The streams balance change (positive to add, negative to remove)\
     /// `new_receivers`: The new streams receivers list\
@@ -73,7 +72,7 @@ module xylkstream::driver_transfer_utils {
     public fun set_streams_and_transfer(
         caller: &signer,
         account_id: u256,
-        token_type: TypeInfo,
+        fa_metadata: address,
         curr_receivers: &vector<streams::StreamReceiver>,
         balance_delta: I128,
         new_receivers: &vector<streams::StreamReceiver>,
@@ -82,13 +81,13 @@ module xylkstream::driver_transfer_utils {
         transfer_to: address
     ): I128 {
         if (!i128::is_neg(&balance_delta)) {
-            transfer_to_drips(caller, token_type, i128::as_u128(&balance_delta));
+            transfer_to_drips(caller, fa_metadata, i128::as_u128(&balance_delta));
         };
 
         let real_balance_delta =
             drips::set_streams(
                 account_id,
-                token_type,
+                fa_metadata,
                 curr_receivers,
                 balance_delta,
                 new_receivers,
@@ -98,7 +97,7 @@ module xylkstream::driver_transfer_utils {
 
         if (i128::is_neg(&real_balance_delta)) {
             let neg_delta = i128::neg(&real_balance_delta);
-            drips::withdraw(token_type, transfer_to, i128::as_u128(&neg_delta));
+            drips::withdraw(fa_metadata, transfer_to, i128::as_u128(&neg_delta));
         };
 
         real_balance_delta
@@ -107,12 +106,12 @@ module xylkstream::driver_transfer_utils {
     /// Transfers tokens from the caller to the Drips vault.
     ///
     /// `caller`: The signer transferring tokens\
-    /// `token_type`: The token type (FA Metadata address)\
+    /// `fa_metadata`: The address of FA in use\
     /// `amt`: The amount to transfer
     public fun transfer_to_drips(
-        caller: &signer, token_type: TypeInfo, amt: u128
+        caller: &signer, fa_metadata: address, amt: u128
     ) {
-        let metadata = object::address_to_object<Metadata>(token_type.account_address());
+        let metadata = object::address_to_object<Metadata>(fa_metadata);
         primary_fungible_store::transfer(
             caller,
             metadata,

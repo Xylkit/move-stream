@@ -1,0 +1,23 @@
+---
+profiles:
+  default:
+    network: Custom
+    private_key: ed25519-priv-0x48b94363eb32d4f3ed4dda64248c934fff1ab430e2b1d6ae12496d938d1e4701
+    public_key: ed25519-pub-0x080327c60b26af33cf50c92d669d63b01149165ec0f5d8e2705741763bf68380
+    account: d18345e1db01a8d1dcd35348ff7fb00177fffde29a3afb50e23695d3ee34301f
+    rest_url: "http://127.0.0.1:8080/"
+    faucet_url: "http://127.0.0.1:8081/"
+  deployment2:
+    network: Custom
+    private_key: ed25519-priv-0x16a4e183a0012aa58e366c4b29799675f2077f311240b538b2949d3f35ab3bf4
+    public_key: ed25519-pub-0x3bb01775693f4ba4c7d314807b22faca42847cdd96fb9c55813a353c8a360487
+    account: d848fa1c721ff80830d9290908467d6a39e5990c9364233c9bdf459edad20666
+    rest_url: "http://127.0.0.1:8080/"
+    faucet_url: "http://127.0.0.1:8081/"
+  localnet:
+    network: Local
+    private_key: ed25519-priv-0x60feefdd5f147f5eb13e6787538eb71be50379d625c8761f2565fd729615bb4c
+    public_key: ed25519-pub-0x9a7bc059c1ea1b7d3e95523761a35b9a7775be22a3242cb3aabe656b291c346a
+    account: d2b70df1ddb29a8b0dfc14460d50636759cf3397a8cc0f03162b2093a535578b
+    rest_url: "http://127.0.0.1:8080"
+    faucet_url: "http://127.0.0.1:8081"

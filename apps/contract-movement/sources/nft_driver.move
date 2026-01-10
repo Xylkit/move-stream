@@ -420,6 +420,20 @@ module xylkstream::nft_driver {
             max_end_hint2,
             transfer_to
         );
+
+        // Emit event with new receivers data
+        let (_, _, _, balance, max_end) = drips::streams_state(token_id, fa_metadata);
+        drips::emit_streams_set(
+            token_id,
+            fa_metadata,
+            new_receiver_account_ids,
+            new_receiver_stream_ids,
+            new_receiver_amt_per_secs,
+            new_receiver_starts,
+            new_receiver_durations,
+            balance,
+            max_end
+        );
     }
 
     /// Sets the account splits configuration.
@@ -441,6 +455,7 @@ module xylkstream::nft_driver {
                 &receiver_account_ids, &receiver_weights
             );
         drips::set_splits(token_id, &receivers);
+        drips::emit_splits_set(token_id, receiver_account_ids, receiver_weights);
     }
 
     /// Emits account metadata for the given token.

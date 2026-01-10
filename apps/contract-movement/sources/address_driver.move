@@ -163,6 +163,7 @@ module xylkstream::address_driver {
         max_end_hint2: u64,
         transfer_to: address
     ) acquires AddressDriverStorage {
+        let account_id = caller_account_id(caller);
         let curr_receivers =
             driver_utils::build_stream_receivers(
                 &curr_receiver_account_ids,
@@ -182,7 +183,7 @@ module xylkstream::address_driver {
         let balance_delta = i128::from_bits(balance_delta_bits);
         driver_transfer_utils::set_streams_and_transfer(
             caller,
-            caller_account_id(caller),
+            account_id,
             fa_metadata,
             &curr_receivers,
             balance_delta,
@@ -190,6 +191,20 @@ module xylkstream::address_driver {
             max_end_hint1,
             max_end_hint2,
             transfer_to
+        );
+
+        // Emit event with new receivers data
+        let (_, _, _, balance, max_end) = drips::streams_state(account_id, fa_metadata);
+        drips::emit_streams_set(
+            account_id,
+            fa_metadata,
+            new_receiver_account_ids,
+            new_receiver_stream_ids,
+            new_receiver_amt_per_secs,
+            new_receiver_starts,
+            new_receiver_durations,
+            balance,
+            max_end
         );
     }
 
@@ -204,11 +219,13 @@ module xylkstream::address_driver {
     public entry fun set_splits(
         caller: &signer, receiver_account_ids: vector<u256>, receiver_weights: vector<u32>
     ) acquires AddressDriverStorage {
+        let account_id = caller_account_id(caller);
         let receivers =
             driver_utils::build_splits_receivers(
                 &receiver_account_ids, &receiver_weights
             );
-        drips::set_splits(caller_account_id(caller), &receivers);
+        drips::set_splits(account_id, &receivers);
+        drips::emit_splits_set(account_id, receiver_account_ids, receiver_weights);
     }
 
     /// Emits the caller's account metadata for off-chain indexing.

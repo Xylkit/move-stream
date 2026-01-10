@@ -88,13 +88,78 @@ module xylkstream::drips {
         value: vector<u8>
     }
 
+    #[event]
+    /// Emitted when streams configuration is updated
+    struct StreamsSet has drop, store {
+        account_id: u256,
+        fa_metadata: address,
+        receiver_account_ids: vector<u256>,
+        receiver_stream_ids: vector<u64>,
+        receiver_amt_per_secs: vector<u256>,
+        receiver_starts: vector<u64>,
+        receiver_durations: vector<u64>,
+        balance: u128,
+        max_end: u64
+    }
+
+    #[event]
+    /// Emitted when splits configuration is updated
+    struct SplitsSet has drop, store {
+        account_id: u256,
+        receiver_account_ids: vector<u256>,
+        receiver_weights: vector<u32>
+    }
+
+    #[event]
+    /// Emitted when funds are given directly
+    struct Given has drop, store {
+        account_id: u256,
+        receiver_id: u256,
+        fa_metadata: address,
+        amount: u128
+    }
+
+    #[event]
+    /// Emitted when streams are received from completed cycles
+    struct Received has drop, store {
+        account_id: u256,
+        fa_metadata: address,
+        amount: u128
+    }
+
+    #[event]
+    /// Emitted when streams are squeezed from current cycle
+    struct Squeezed has drop, store {
+        account_id: u256,
+        sender_id: u256,
+        fa_metadata: address,
+        amount: u128
+    }
+
+    #[event]
+    /// Emitted when splits are executed
+    struct SplitExecuted has drop, store {
+        account_id: u256,
+        fa_metadata: address,
+        to_receivers: u128,
+        to_self: u128
+    }
+
+    #[event]
+    /// Emitted when funds are collected
+    struct Collected has drop, store {
+        account_id: u256,
+        fa_metadata: address,
+        amount: u128
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              INITIALIZATION
     // ═══════════════════════════════════════════════════════════════════════════════
 
-    /// Default cycle length: 5 Minutes (300 seconds)
+    /// Default cycle length: 1 Minute (60 seconds)
     /// Change this value before deployment if you want a different cycle length.
-    const DEFAULT_CYCLE_SECS: u64 = 300;
+    const DEFAULT_CYCLE_SECS: u64 = 60;
 
     /// Initialize drips, streams, and splits storage.
     /// Called automatically when the module is published.
@@ -292,6 +357,7 @@ module xylkstream::drips {
         if (received_amt != 0) {
             move_balance_from_streams_to_splits(fa_metadata, received_amt);
             splits::add_splittable(account_id, fa_metadata, received_amt);
+            event::emit(Received { account_id, fa_metadata, amount: received_amt });
         };
     }
 
@@ -368,6 +434,9 @@ module xylkstream::drips {
         if (amt != 0) {
             move_balance_from_streams_to_splits(fa_metadata, amt);
             splits::add_splittable(account_id, fa_metadata, amt);
+            event::emit(
+                Squeezed { account_id, sender_id, fa_metadata, amount: amt }
+            );
         };
     }
 
@@ -407,6 +476,33 @@ module xylkstream::drips {
         real_balance_delta
     }
 
+    /// Emits a StreamsSet event. Called by drivers after set_streams.
+    public(friend) fun emit_streams_set(
+        account_id: u256,
+        fa_metadata: address,
+        receiver_account_ids: vector<u256>,
+        receiver_stream_ids: vector<u64>,
+        receiver_amt_per_secs: vector<u256>,
+        receiver_starts: vector<u64>,
+        receiver_durations: vector<u64>,
+        balance: u128,
+        max_end: u64
+    ) {
+        event::emit(
+            StreamsSet {
+                account_id,
+                fa_metadata,
+                receiver_account_ids,
+                receiver_stream_ids,
+                receiver_amt_per_secs,
+                receiver_starts,
+                receiver_durations,
+                balance,
+                max_end
+            }
+        );
+    }
+
     /// Calculates the hash of the streams configuration.
     public fun hash_streams(receivers: &vector<streams::StreamReceiver>): vector<u8> {
         streams::hash_streams(receivers)
@@ -443,7 +539,12 @@ module xylkstream::drips {
             driver_utils::build_splits_receivers(
                 &receiver_account_ids, &receiver_weights
             );
-        splits::split(account_id, fa_metadata, &receivers);
+        let (to_self, to_receivers) = splits::split(account_id, fa_metadata, &receivers);
+        if (to_self != 0 || to_receivers != 0) {
+            event::emit(
+                SplitExecuted { account_id, fa_metadata, to_receivers, to_self }
+            );
+        };
     }
 
     /// Collects account's received already split funds and makes them withdrawable.
@@ -453,6 +554,7 @@ module xylkstream::drips {
         let amt = splits::collect(account_id, fa_metadata);
         if (amt != 0) {
             decrease_splits_balance(fa_metadata, amt);
+            event::emit(Collected { account_id, fa_metadata, amount: amt });
         };
         amt
     }
@@ -468,6 +570,9 @@ module xylkstream::drips {
     ) acquires DripsStorage {
         if (amt != 0) {
             increase_splits_balance(fa_metadata, amt);
+            event::emit(
+                Given { account_id, receiver_id: receiver, fa_metadata, amount: amt }
+            );
         };
         splits::give(account_id, receiver, fa_metadata, amt);
     }
@@ -475,7 +580,14 @@ module xylkstream::drips {
     public(friend) fun set_splits(
         account_id: u256, receivers: &vector<splits::SplitsReceiver>
     ) {
-        splits::set_splits(account_id, receivers)
+        splits::set_splits(account_id, receivers);
+    }
+
+    /// Emits a SplitsSet event. Called by drivers after set_splits.
+    public(friend) fun emit_splits_set(
+        account_id: u256, receiver_account_ids: vector<u256>, receiver_weights: vector<u32>
+    ) {
+        event::emit(SplitsSet { account_id, receiver_account_ids, receiver_weights });
     }
 
     public fun hash_splits(receivers: &vector<splits::SplitsReceiver>): vector<u8> {

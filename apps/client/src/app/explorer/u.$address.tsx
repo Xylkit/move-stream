@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { getUser, triggerSync, getSyncStatus, timeAgo, type UserDeployment } from "../../lib/api";
 
 export const Route = createFileRoute("/explorer/u/$address")({
@@ -94,7 +95,7 @@ function UserView() {
               disabled={syncing}
               className="ml-2 text-cyan-500 hover:text-cyan-400 disabled:opacity-50 focus:outline-none"
             >
-              {syncing ? '↻' : '↻'}
+              <RefreshCw className={`w-3 h-3 inline ${syncing ? 'animate-spin' : ''}`} />
             </button>
           </div>
           <button className="px-5 py-2.5 rounded-full bg-white/[0.03] border border-white/10 text-slate-400 text-sm hover:border-cyan-500/30 hover:text-white transition-all focus:outline-none">

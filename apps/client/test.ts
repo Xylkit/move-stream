@@ -37,9 +37,9 @@ import { toI128Bits } from "./src/utils/signed-integers";
 //                              CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "0xd18345e1db01a8d1dcd35348ff7fb00177fffde29a3afb50e23695d3ee34301f";
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "0xe845691ddd1e7f44fdf7189d0f186bcb43ebfb06371909dd6833553df8ce262c";
 const NODE_URL = "http://127.0.0.1:8080/v1";
-const APT_FA_METADATA = "0xa";
+const APT_FA_METADATA = "0x000000000000000000000000000000000000000000000000000000000000000a";
 const CYCLE_DURATION_SECS = 60;
 
 const config = new AptosConfig({

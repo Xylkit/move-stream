@@ -1,0 +1,9 @@
+---
+profiles:
+  default:
+    network: Custom
+    private_key: ed25519-priv-0x562a0b7361f1701bba0197bb80cec24bcf591fe9344ae91072162d0f3ae51d22
+    public_key: ed25519-pub-0x6a15ddf99c59489e9f6ef831e506c14393d8d615bcee9b3cce2b303211ea4150
+    account: e845691ddd1e7f44fdf7189d0f186bcb43ebfb06371909dd6833553df8ce262c
+    rest_url: "http://127.0.0.1:8080/"
+    faucet_url: "http://127.0.0.1:8081/"

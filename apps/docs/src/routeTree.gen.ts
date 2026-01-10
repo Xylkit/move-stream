@@ -13,6 +13,8 @@ import { Route as ExplorerRouteImport } from "./app/explorer"
 import { Route as DocumentationRouteImport } from "./app/documentation"
 import { Route as DemoRouteImport } from "./app/demo"
 import { Route as IndexRouteImport } from "./app/index"
+import { Route as ExplorerUAddressRouteImport } from "./app/explorer/u.$address"
+import { Route as ExplorerDAddressRouteImport } from "./app/explorer/d.$address"
 
 const ExplorerRoute = ExplorerRouteImport.update({
   id: "/explorer",
@@ -34,39 +36,74 @@ const IndexRoute = IndexRouteImport.update({
   path: "/",
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExplorerUAddressRoute = ExplorerUAddressRouteImport.update({
+  id: "/u/$address",
+  path: "/u/$address",
+  getParentRoute: () => ExplorerRoute,
+} as any)
+const ExplorerDAddressRoute = ExplorerDAddressRouteImport.update({
+  id: "/d/$address",
+  path: "/d/$address",
+  getParentRoute: () => ExplorerRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
   "/demo": typeof DemoRoute
   "/documentation": typeof DocumentationRoute
-  "/explorer": typeof ExplorerRoute
+  "/explorer": typeof ExplorerRouteWithChildren
+  "/explorer/d/$address": typeof ExplorerDAddressRoute
+  "/explorer/u/$address": typeof ExplorerUAddressRoute
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
   "/demo": typeof DemoRoute
   "/documentation": typeof DocumentationRoute
-  "/explorer": typeof ExplorerRoute
+  "/explorer": typeof ExplorerRouteWithChildren
+  "/explorer/d/$address": typeof ExplorerDAddressRoute
+  "/explorer/u/$address": typeof ExplorerUAddressRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/": typeof IndexRoute
   "/demo": typeof DemoRoute
   "/documentation": typeof DocumentationRoute
-  "/explorer": typeof ExplorerRoute
+  "/explorer": typeof ExplorerRouteWithChildren
+  "/explorer/d/$address": typeof ExplorerDAddressRoute
+  "/explorer/u/$address": typeof ExplorerUAddressRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/demo" | "/documentation" | "/explorer"
+  fullPaths:
+    | "/"
+    | "/demo"
+    | "/documentation"
+    | "/explorer"
+    | "/explorer/d/$address"
+    | "/explorer/u/$address"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/demo" | "/documentation" | "/explorer"
-  id: "__root__" | "/" | "/demo" | "/documentation" | "/explorer"
+  to:
+    | "/"
+    | "/demo"
+    | "/documentation"
+    | "/explorer"
+    | "/explorer/d/$address"
+    | "/explorer/u/$address"
+  id:
+    | "__root__"
+    | "/"
+    | "/demo"
+    | "/documentation"
+    | "/explorer"
+    | "/explorer/d/$address"
+    | "/explorer/u/$address"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DemoRoute: typeof DemoRoute
   DocumentationRoute: typeof DocumentationRoute
-  ExplorerRoute: typeof ExplorerRoute
+  ExplorerRoute: typeof ExplorerRouteWithChildren
 }
 
 declare module "@tanstack/react-router" {
@@ -99,14 +136,42 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    "/explorer/u/$address": {
+      id: "/explorer/u/$address"
+      path: "/u/$address"
+      fullPath: "/explorer/u/$address"
+      preLoaderRoute: typeof ExplorerUAddressRouteImport
+      parentRoute: typeof ExplorerRoute
+    }
+    "/explorer/d/$address": {
+      id: "/explorer/d/$address"
+      path: "/d/$address"
+      fullPath: "/explorer/d/$address"
+      preLoaderRoute: typeof ExplorerDAddressRouteImport
+      parentRoute: typeof ExplorerRoute
+    }
   }
 }
+
+interface ExplorerRouteChildren {
+  ExplorerDAddressRoute: typeof ExplorerDAddressRoute
+  ExplorerUAddressRoute: typeof ExplorerUAddressRoute
+}
+
+const ExplorerRouteChildren: ExplorerRouteChildren = {
+  ExplorerDAddressRoute: ExplorerDAddressRoute,
+  ExplorerUAddressRoute: ExplorerUAddressRoute,
+}
+
+const ExplorerRouteWithChildren = ExplorerRoute._addFileChildren(
+  ExplorerRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DemoRoute: DemoRoute,
   DocumentationRoute: DocumentationRoute,
-  ExplorerRoute: ExplorerRoute,
+  ExplorerRoute: ExplorerRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

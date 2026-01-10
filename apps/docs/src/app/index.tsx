@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, ChevronRight, Zap } from "lucide-react";
+import { ArrowRight, Zap } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -24,41 +24,6 @@ function LandingPage() {
         {/* Very Faint Grid (Structure) - 2% Opacity */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:100px_100px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] contrast-125 saturate-0" />
       </div>
-
-      {/* Floating Navbar */}
-      <nav className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-4xl px-4">
-        <div className="relative flex items-center justify-between p-2 rounded-full border border-white/5 bg-black/40 backdrop-blur-xl shadow-[0_4px_30px_-5px_rgba(0,0,0,0.5)]">
-          {/* Logo / Links */}
-          <div className="flex items-center gap-1 md:gap-2 px-4">
-            <Link
-              to="/"
-              className="text-white font-serif font-semibold tracking-wide text-xl mr-6 italic"
-            >
-              Xylkit
-            </Link>
-            <div className="hidden md:flex items-center gap-8 text-sm text-slate-400 font-medium">
-              <Link
-                to="/documentation"
-                className="hover:text-cyan-200 transition-colors tracking-wide"
-              >
-                Docs
-              </Link>
-              <Link
-                to="/explorer"
-                className="hover:text-cyan-200 transition-colors tracking-wide"
-              >
-                Explorer
-              </Link>
-            </div>
-          </div>
-
-          {/* CTA */}
-          <button className="group relative flex items-center gap-2 px-5 py-2 rounded-full bg-white text-black text-sm font-semibold hover:bg-cyan-50 transition-all shadow-[0_0_20px_-5px_rgba(255,255,255,0.4)]">
-            <span className="tracking-wide">Launch Demo</span>
-            <ChevronRight className="w-4 h-4 text-black/70 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-        </div>
-      </nav>
 
       {/* Hero Section */}
       <main className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 text-center pt-20">
@@ -117,12 +82,7 @@ function LandingPage() {
       </main>
 
       <style>{`
-        :root {
-          --font-sans: 'Outfit', sans-serif;
-          --font-serif: 'Cormorant Garamond', serif;
-        }
-        .font-sans { font-family: var(--font-sans); }
-        .font-serif { font-family: var(--font-serif); }
+
         
         @keyframes fade-in-up {
           from { opacity: 0; transform: translateY(30px); filter: blur(10px); }

@@ -12,9 +12,9 @@
   --card-foreground: oklch(0.2046 0 0);
   --popover: oklch(0.9911 0 0);
   --popover-foreground: oklch(0.4386 0 0);
-  --primary: oklch(0.8348 0.1302 160.9080);
+  --primary: oklch(0.8348 0.1302 160.908);
   --primary-foreground: oklch(0.2626 0.0147 166.4589);
-  --secondary: oklch(0.9940 0 0);
+  --secondary: oklch(0.994 0 0);
   --secondary-foreground: oklch(0.2046 0 0);
   --muted: oklch(0.9461 0 0);
   --muted-foreground: oklch(0.2435 0 0);
@@ -24,27 +24,34 @@
   --destructive-foreground: oklch(0.9934 0.0032 17.2118);
   --border: oklch(0.9037 0 0);
   --input: oklch(0.9731 0 0);
-  --ring: oklch(0.8348 0.1302 160.9080);
+  --ring: oklch(0.8348 0.1302 160.908);
   --chart-1: oklch(63.79% 0.1872 24.11);
-  --chart-2: oklch(0.8003 0.1821 151.7110);
+  --chart-2: oklch(0.8003 0.1821 151.711);
   --chart-3: oklch(0.6056 0.2189 292.7172);
   --chart-4: oklch(0.7686 0.1647 70.0804);
   --chart-5: oklch(0.6959 0.1491 162.4796);
   --sidebar: oklch(0.9911 0 0);
   --sidebar-foreground: oklch(0.5452 0 0);
-  --sidebar-primary: oklch(0.8348 0.1302 160.9080);
+  --sidebar-primary: oklch(0.8348 0.1302 160.908);
   --sidebar-primary-foreground: oklch(0.2626 0.0147 166.4589);
   --sidebar-accent: oklch(0.9461 0 0);
   --sidebar-accent-foreground: oklch(0.2435 0 0);
   --sidebar-border: oklch(0.9037 0 0);
-  --sidebar-ring: oklch(0.8348 0.1302 160.9080);
+  --sidebar-ring: oklch(0.8348 0.1302 160.908);
   /* Font definitions updated for Google Fonts */
-  --font-jetbrains-mono: "JetBrains Mono", "JetBrains Mono Fallback", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-  --font-source-code-pro: "Source Code Pro", "Source Code Pro Fallback", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-jetbrains-mono:
+    "JetBrains Mono", "JetBrains Mono Fallback", Consolas, "Liberation Mono", Menlo,
+    Courier, monospace;
+  --font-source-code-pro:
+    "Source Code Pro", "Source Code Pro Fallback", ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --font-sans: var(--font-jetbrains-mono), system-ui, sans-serif;
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-  --font-display: var(--font-source-code-pro), var(--font-jetbrains-mono), system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
+  --font-mono:
+    var(--font-jetbrains-mono), "JetBrains Mono", Consolas, "Liberation Mono", Menlo,
+    Courier, monospace;
+  --font-display:
+    var(--font-source-code-pro), var(--font-jetbrains-mono), system-ui, sans-serif;
   --radius: 0rem;
   --shadow-2xs: 0px 0px 3.5px 3px hsl(0 0% 0% / 0.01);
   --shadow-xs: 0px 0px 3.5px 3px hsl(0 0% 0% / 0.01);
@@ -56,7 +63,7 @@
   --shadow-2xl: 0px 0px 3.5px 3px hsl(0 0% 0% / 0.03);
   --tracking-normal: 0.025em;
   --spacing: 0.25rem;
-  
+
   /* SVG Background Patterns */
   --dot-white: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='16' height='16' fill='none'%3e%3ccircle fill='white' cx='10' cy='10' r='1.6257413380501518'%3e%3c/circle%3e%3c/svg%3e");
   --dot-black: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='16' height='16' fill='none'%3e%3ccircle fill='black' cx='10' cy='10' r='1.6257413380501518'%3e%3c/circle%3e%3c/svg%3e");
@@ -81,12 +88,12 @@
   --destructive-foreground: oklch(0.9368 0.0045 34.3092);
   --border: oklch(0.2809 0 0);
   --input: oklch(0.2603 0 0);
-  --ring: oklch(0.8003 0.1821 151.7110);
+  --ring: oklch(0.8003 0.1821 151.711);
   --chart-1: oklch(63.79% 0.1872 24.11);
-  --chart-2: oklch(0.8003 0.1821 151.7110);
-  --chart-3: oklch(0.7090 0.1592 293.5412);
+  --chart-2: oklch(0.8003 0.1821 151.711);
+  --chart-3: oklch(0.709 0.1592 293.5412);
   --chart-4: oklch(0.8369 0.1644 84.4286);
-  --chart-5: oklch(0.7845 0.1325 181.9120);
+  --chart-5: oklch(0.7845 0.1325 181.912);
   --sidebar: oklch(0.1822 0 0);
   --sidebar-foreground: oklch(0.6301 0 0);
   --sidebar-primary: oklch(0.4365 0.1044 156.7556);
@@ -94,11 +101,7 @@
   --sidebar-accent: oklch(0.3132 0 0);
   --sidebar-accent-foreground: oklch(0.9851 0 0);
   --sidebar-border: oklch(0.2809 0 0);
-  --sidebar-ring: oklch(0.8003 0.1821 151.7110);
-  --font-sans: var(--font-jetbrains-mono), system-ui, sans-serif;
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-  --font-display: var(--font-source-code-pro), var(--font-jetbrains-mono), system-ui, sans-serif;
+  --sidebar-ring: oklch(0.8003 0.1821 151.711);
   --radius: 0rem;
   --shadow-2xs: 0px 0px 3.5px 3px hsl(0 0% 0% / 0.01);
   --shadow-xs: 0px 0px 3.5px 3px hsl(0 0% 0% / 0.01);
@@ -658,7 +661,6 @@
   text-wrap: balance;
 }
 
-
 @layer components {
   button {
     cursor: pointer;
@@ -672,17 +674,21 @@
   .font-display {
     font-family: var(--font-display);
   }
-  
+
   .font-mono {
     font-family: var(--font-mono);
   }
-  
+
   .font-sans {
     font-family: var(--font-sans);
   }
-  
+
   .font-source-code-pro {
     font-family: var(--font-source-code-pro);
+  }
+
+  .font-serif {
+    font-family: var(--font-serif);
   }
 
   .animate-shimmer {
@@ -696,15 +702,19 @@
     background-size: 200% 100%;
     animation: shimmer 2s linear infinite;
   }
-  
+
   .bg-dot-pattern {
-    background-image: radial-gradient(circle, rgba(0,0,0,0.2) 1px, transparent 1px);
+    background-image: radial-gradient(circle, rgba(0, 0, 0, 0.2) 1px, transparent 1px);
     background-size: 16px 16px;
     background-repeat: repeat;
   }
-  
+
   .dark .bg-dot-pattern {
-    background-image: radial-gradient(circle, rgba(255,255,255,0.2) 1px, transparent 1px);
+    background-image: radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.2) 1px,
+      transparent 1px
+    );
   }
 }
 
@@ -731,15 +741,18 @@
 
   html {
     @apply scroll-smooth;
+        overscroll-behavior: none;
+
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
-    overscroll-behavior: none;
   }
 }
 

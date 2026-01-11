@@ -1,4 +1,4 @@
-import { ColumnType, Generated } from 'kysely';
+import { ColumnType, Generated } from "kysely";
 
 // Deployments table
 export interface DeploymentsTable {
@@ -32,6 +32,7 @@ export interface AccountsTable {
   account_id: string;
   wallet_address: string | null;
   driver_type: number; // 1=AddressDriver, 2=NFTDriver
+  driver_name: string | null; // e.g., "address_driver", "nft_driver", "custom_driver"
   created_at: ColumnType<string, string, string>;
 }
 
@@ -82,6 +83,16 @@ export interface TokenPricesTable {
   updated_at: ColumnType<string, string, string>;
 }
 
+// Tokens metadata table - cached from blockchain
+export interface TokensTable {
+  address: string; // fa_metadata address (primary key)
+  symbol: string;
+  name: string;
+  decimals: number;
+  created_at: ColumnType<string, string, string>;
+  updated_at: ColumnType<string, string, string>;
+}
+
 // Database interface
 export interface DB {
   deployments: DeploymentsTable;
@@ -92,4 +103,5 @@ export interface DB {
   splits: SplitsTable;
   events: EventsTable;
   token_prices: TokenPricesTable;
+  tokens: TokensTable;
 }

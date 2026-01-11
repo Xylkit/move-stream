@@ -1,11 +1,11 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs';
+import Database from "better-sqlite3";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, '../../data');
-const dbPath = path.join(dataDir, 'xylkit.db');
+const dataDir = path.join(__dirname, "../../data");
+const dbPath = path.join(dataDir, "xylkit.db");
 
 // Ensure data directory exists
 if (!fs.existsSync(dataDir)) {
@@ -13,7 +13,7 @@ if (!fs.existsSync(dataDir)) {
 }
 
 const db = new Database(dbPath);
-db.pragma('foreign_keys = ON');
+db.pragma("foreign_keys = ON");
 
 db.exec(`
   -- Deployments
@@ -49,6 +49,7 @@ db.exec(`
     account_id TEXT NOT NULL,
     wallet_address TEXT,
     driver_type INTEGER NOT NULL DEFAULT 1,
+    driver_name TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(deployment_address, account_id)
   );
@@ -102,6 +103,16 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- Tokens metadata (cached from blockchain)
+  CREATE TABLE IF NOT EXISTS tokens (
+    address TEXT PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    name TEXT NOT NULL,
+    decimals INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- Indexes
   CREATE INDEX IF NOT EXISTS idx_accounts_wallet ON accounts(wallet_address);
   CREATE INDEX IF NOT EXISTS idx_streams_sender ON streams(sender_id);
@@ -111,5 +122,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_events_sequence ON events(deployment_address, event_type, sequence_number);
 `);
 
-console.log('✅ Database migrated:', dbPath);
+// Add driver_name column if it doesn't exist (for existing databases)
+try {
+  db.exec(`ALTER TABLE accounts ADD COLUMN driver_name TEXT;`);
+  console.log("✅ Added driver_name column to accounts table");
+} catch (err: any) {
+  if (!err.message.includes("duplicate column name")) {
+    console.error("⚠️  Error adding driver_name column:", err.message);
+  }
+}
+
+console.log("✅ Database migrated:", dbPath);
 db.close();

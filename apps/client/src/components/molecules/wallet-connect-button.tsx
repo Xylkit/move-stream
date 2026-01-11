@@ -21,9 +21,7 @@ export function WalletConnectButton() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={disconnect}>
-            Disconnect
-          </DropdownMenuItem>
+          <DropdownMenuItem onClick={disconnect}>Disconnect</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -39,7 +37,7 @@ export function WalletConnectButton() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <div className="p-2 text-sm text-muted-foreground">
-            No Aptos wallet detected
+            No Movement wallet detected
           </div>
           <DropdownMenuItem asChild>
             <a
@@ -66,10 +64,7 @@ export function WalletConnectButton() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {wallets.map((wallet) => (
-          <DropdownMenuItem
-            key={wallet.name}
-            onClick={() => connect(wallet.name)}
-          >
+          <DropdownMenuItem key={wallet.name} onClick={() => connect(wallet.name)}>
             <div className="flex items-center gap-2">
               {wallet.icon && (
                 <img src={wallet.icon} alt={wallet.name} className="w-5 h-5" />

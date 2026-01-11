@@ -13,7 +13,7 @@ export const DripsDocumentation = () => {
           }
         });
       },
-      { threshold: 0.1, rootMargin: "0px 0px -100px 0px" }
+      { threshold: 0.1, rootMargin: "0px 0px -100px 0px" },
     );
 
     const sections = document.querySelectorAll("section[id]");
@@ -34,32 +34,34 @@ export const DripsDocumentation = () => {
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Introduction</h1>
-        
+
         <p className="text-gray-300 text-lg mb-6">
-          Xylkit is a protocol built on Movement/Aptos that enables flexible token streaming and splitting, 
-          with built-in <em>dependency splitting</em> capabilities.
+          Xylkit is a protocol built on Movement/Aptos that enables flexible token streaming
+          and splitting, with built-in <em>dependency splitting</em> capabilities.
         </p>
 
         <h2 className="text-2xl font-semibold mb-4">How funds flow on Xylkit</h2>
         <p className="text-gray-300 mb-4">
-          On Xylkit, anyone can set up continuous streams of any Fungible Asset (FA) to multiple recipients. 
-          Recipients can configure their own splits to automatically forward a percentage of their earnings 
-          to others. Over time, this creates a <em>dependency tree</em>, ensuring that even deeply-nested 
-          dependencies receive a portion of funds.
+          On Xylkit, anyone can set up continuous streams of any Fungible Asset (FA) to
+          multiple recipients. Recipients can configure their own splits to automatically
+          forward a percentage of their earnings to others. Over time, this creates a{" "}
+          <em>dependency tree</em>, ensuring that even deeply-nested dependencies receive a
+          portion of funds.
         </p>
 
         <h3 className="text-xl font-semibold mb-3 mt-8">Streaming to your dependencies</h3>
         <p className="text-gray-300 mb-4">
-          Individuals and organizations can stream funds to up to 100 recipients, each assigned a specific 
-          streaming rate. Streams can be configured to start immediately or scheduled for the future, and 
-          can be altered or stopped at any point.
+          Individuals and organizations can stream funds to up to 100 recipients, each
+          assigned a specific streaming rate. Streams can be configured to start immediately
+          or scheduled for the future, and can be altered or stopped at any point.
         </p>
 
         <h3 className="text-xl font-semibold mb-3 mt-8">Receiving and splitting funds</h3>
         <p className="text-gray-300 mb-4">
-          Any account can receive funds at any time. Recipients can configure up to 200 <em>splits receivers</em>, 
-          and any funds coming in are automatically distributed accordingly. This includes both direct recipients 
-          (addresses that should receive funds) and dependencies (other accounts that should receive a share).
+          Any account can receive funds at any time. Recipients can configure up to 200{" "}
+          <em>splits receivers</em>, and any funds coming in are automatically distributed
+          accordingly. This includes both direct recipients (addresses that should receive
+          funds) and dependencies (other accounts that should receive a share).
         </p>
       </section>
 
@@ -73,7 +75,7 @@ export const DripsDocumentation = () => {
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Getting Started</h1>
-        
+
         <p className="text-gray-300 text-lg mb-6">
           Ready to start using Xylkit? Here's how to interact with the protocol.
         </p>
@@ -82,28 +84,38 @@ export const DripsDocumentation = () => {
           <p className="text-blue-300 font-semibold mb-2">📝 No SDK Yet</p>
           <p className="text-gray-300">
             We don't have a JavaScript/TypeScript SDK yet. For now, check out the{" "}
-            <code className="bg-gray-800 px-2 py-1 rounded">test.ts</code> file in the docs app for 
-            examples of how to interact with the contracts directly. An SDK is coming soon!
+            <code className="bg-gray-800 px-2 py-1 rounded">test.ts</code> file in the docs
+            app for examples of how to interact with the contracts directly. An SDK is
+            coming soon!
           </p>
         </div>
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Contract Addresses</h2>
         <p className="text-gray-300 mb-4">
-          The Xylkit contracts are deployed under the <code>xylkstream</code> module address. Key modules:
+          The Xylkit contracts are deployed under the <code>xylkstream</code> module
+          address. Key modules:
         </p>
 
         <ul className="list-disc list-inside text-gray-300 space-y-2 mb-6">
-          <li><code>xylkstream::drips</code> - Core protocol logic</li>
-          <li><code>xylkstream::streams</code> - Streaming implementation</li>
-          <li><code>xylkstream::splits</code> - Splitting implementation</li>
-          <li><code>xylkstream::address_driver</code> - Address-based accounts</li>
-          <li><code>xylkstream::nft_driver</code> - NFT-based accounts</li>
+          <li>
+            <code>xylkstream::drips</code> - Core protocol logic
+          </li>
+          <li>
+            <code>xylkstream::streams</code> - Streaming implementation
+          </li>
+          <li>
+            <code>xylkstream::splits</code> - Splitting implementation
+          </li>
+          <li>
+            <code>xylkstream::address_driver</code> - Address-based accounts
+          </li>
+          <li>
+            <code>xylkstream::nft_driver</code> - NFT-based accounts
+          </li>
         </ul>
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Quick Example</h2>
-        <p className="text-gray-300 mb-4">
-          Here's a basic flow for streaming tokens:
-        </p>
+        <p className="text-gray-300 mb-4">Here's a basic flow for streaming tokens:</p>
 
         <CodeBlock
           id="quick-example"
@@ -149,19 +161,21 @@ await addressDriver.set_streams(
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Overview</h1>
-        
+
         <p className="text-gray-300 text-lg mb-6">
-          Xylkit is a fully decentralized, non-custodial, autonomous, and gas-optimized protocol allowing you 
-          to schedule and structure your Fungible Asset transactions on Movement/Aptos.
+          Xylkit is a fully decentralized, non-custodial, autonomous, and gas-optimized
+          protocol allowing you to schedule and structure your Fungible Asset transactions
+          on Movement/Aptos.
         </p>
 
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-6 py-1 my-6">
           <p className="text-yellow-300 font-semibold mb-2">⚠️ Experimental Software</p>
           <p className="text-gray-300 text-sm">
-            Xylkit is experimental software. The protocol operates in a fully decentralized and autonomous manner. 
-            No entity controls or is responsible for the ongoing operation of the protocol, nor does any entity 
-            have custody of funds. You are solely responsible for any interaction with the protocol. The software 
-            is available on an "as-is" basis with no warranties. Use at your own risk.
+            Xylkit is experimental software. The protocol operates in a fully decentralized
+            and autonomous manner. No entity controls or is responsible for the ongoing
+            operation of the protocol, nor does any entity have custody of funds. You are
+            solely responsible for any interaction with the protocol. The software is
+            available on an "as-is" basis with no warranties. Use at your own risk.
           </p>
         </div>
 
@@ -173,7 +187,8 @@ await addressDriver.set_streams(
           <div className="bg-gradient-to-r from-blue-500/10 to-transparent border-l-4 border-blue-500 px-6 py-1">
             <h3 className="text-xl font-semibold mb-3 text-blue-400">Streaming</h3>
             <p className="text-gray-300">
-              Moving funds between accounts over a period of time at a fixed per-second rate.
+              Moving funds between accounts over a period of time at a fixed per-second
+              rate.
             </p>
           </div>
 
@@ -187,16 +202,18 @@ await addressDriver.set_streams(
           <div className="bg-gradient-to-r from-purple-500/10 to-transparent border-l-4 border-purple-500 px-6 py-1">
             <h3 className="text-xl font-semibold mb-3 text-purple-400">Splitting</h3>
             <p className="text-gray-300">
-              Transferring a fixed fraction of funds received by one account to another account.
+              Transferring a fixed fraction of funds received by one account to another
+              account.
             </p>
           </div>
         </div>
 
         <h2 className="text-2xl font-semibold mb-4 mt-12">Streaming</h2>
         <p className="text-gray-300 mb-4">
-          The streaming functionality sends funds over a period of time. To start streaming you need to configure 
-          a list of stream receivers and top up your streamable balance. Once configured, funds flow automatically 
-          and stop when the balance runs out.
+          The streaming functionality sends funds over a period of time. To start streaming
+          you need to configure a list of stream receivers and top up your streamable
+          balance. Once configured, funds flow automatically and stop when the balance runs
+          out.
         </p>
 
         <CodeBlock
@@ -228,8 +245,8 @@ public entry fun set_streams(
 
         <h2 className="text-2xl font-semibold mb-4 mt-12">Giving</h2>
         <p className="text-gray-300 mb-4">
-          The Giving functionality transfers tokens to another account immediately. It's a one-time operation 
-          with no streaming configuration involved.
+          The Giving functionality transfers tokens to another account immediately. It's a
+          one-time operation with no streaming configuration involved.
         </p>
 
         <CodeBlock
@@ -247,8 +264,9 @@ public entry fun give(
 
         <h2 className="text-2xl font-semibold mb-4 mt-12">Splitting</h2>
         <p className="text-gray-300 mb-4">
-          The Splitting functionality divides received funds and transfers them to other accounts. Each account 
-          has a single splits configuration that applies to all token types.
+          The Splitting functionality divides received funds and transfers them to other
+          accounts. Each account has a single splits configuration that applies to all token
+          types.
         </p>
 
         <CodeBlock
@@ -278,10 +296,22 @@ public entry fun set_splits(
 
         <div className="bg-gray-800/50 border border-gray-700 rounded-lg px-6 py-1 my-6">
           <ol className="list-decimal list-inside text-gray-300 space-y-3">
-            <li><strong>Receiving streams</strong> - Gathers funds streamed to you from finished cycles</li>
-            <li><strong>Squeezing streams</strong> - Gets funds streamed during the current (unfinished) cycle</li>
-            <li><strong>Splitting</strong> - Distributes received funds according to your splits configuration</li>
-            <li><strong>Collecting</strong> - Transfers funds out of the protocol to your wallet</li>
+            <li>
+              <strong>Receiving streams</strong> - Gathers funds streamed to you from
+              finished cycles
+            </li>
+            <li>
+              <strong>Squeezing streams</strong> - Gets funds streamed during the current
+              (unfinished) cycle
+            </li>
+            <li>
+              <strong>Splitting</strong> - Distributes received funds according to your
+              splits configuration
+            </li>
+            <li>
+              <strong>Collecting</strong> - Transfers funds out of the protocol to your
+              wallet
+            </li>
           </ol>
         </div>
 
@@ -324,9 +354,9 @@ public entry fun collect(
         <div className="bg-green-500/10 border border-green-500/30 rounded-lg px-6 py-1 my-8">
           <p className="text-green-300 font-semibold mb-2">✨ Autonomous Flow</p>
           <p className="text-gray-300">
-            Receiving streams, squeezing streams, and splitting can be called by anyone for any account. 
-            This creates an efficient system where funds are never stuck and can always be pushed to keep 
-            flowing through the network of splits.
+            Receiving streams, squeezing streams, and splitting can be called by anyone for
+            any account. This creates an efficient system where funds are never stuck and
+            can always be pushed to keep flowing through the network of splits.
           </p>
         </div>
       </section>
@@ -341,35 +371,48 @@ public entry fun collect(
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Accounts in Xylkit</h1>
-        
+
         <p className="text-gray-300 text-lg mb-6">
-          Xylkit uses a driver-based account model that enables different types of accounts to exchange 
-          funds with one another.
+          Xylkit uses a driver-based account model that enables different types of accounts
+          to exchange funds with one another.
         </p>
 
         <h2 className="text-2xl font-semibold mb-4">Background</h2>
         <p className="text-gray-300 mb-4">
-          End-users can choose to stream or split funds from an account directly associated with their 
-          wallet address, or create NFT-based accounts that each have their own separate balance and 
-          configurations.
+          End-users can choose to stream or split funds from an account directly associated
+          with their wallet address, or create NFT-based accounts that each have their own
+          separate balance and configurations.
         </p>
 
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-6 py-1 my-6">
           <p className="text-blue-300 font-semibold mb-2">Key Points:</p>
           <ul className="list-disc list-inside text-gray-300 space-y-2">
-            <li>Multiple types of accounts can control funds: wallet addresses and NFT-based accounts</li>
-            <li>This is enabled by an extensible system of "account drivers" implemented as Move modules</li>
+            <li>
+              Multiple types of accounts can control funds: wallet addresses and NFT-based
+              accounts
+            </li>
+            <li>
+              This is enabled by an extensible system of "account drivers" implemented as
+              Move modules
+            </li>
             <li>The driver model makes it easy to add new account types in the future</li>
           </ul>
         </div>
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Account IDs</h2>
         <p className="text-gray-300 mb-4">
-          Every account in Xylkit has a unique 256-bit account ID. The format depends on the driver:
+          Every account in Xylkit has a unique 256-bit account ID. The format depends on the
+          driver:
         </p>
         <ul className="list-disc list-inside text-gray-300 space-y-2 mb-6">
-          <li><strong>AddressDriver</strong>: Your wallet address converted directly to a 256-bit number — simple and fully reversible</li>
-          <li><strong>NFTDriver</strong>: Combines the minter's address (160 bits) with a unique salt (64 bits)</li>
+          <li>
+            <strong>AddressDriver</strong>: Your wallet address converted directly to a
+            256-bit number — simple and fully reversible
+          </li>
+          <li>
+            <strong>NFTDriver</strong>: Combines the minter's address (160 bits) with a
+            unique salt (64 bits)
+          </li>
         </ul>
 
         <CodeBlock
@@ -392,14 +435,16 @@ fun calc_token_id_internal(minter: address, salt: u64): u256 {
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Account Drivers</h2>
         <p className="text-gray-300 mb-4">
-          Each driver is responsible for managing a range of account IDs and authenticating actions on those accounts.
+          Each driver is responsible for managing a range of account IDs and authenticating
+          actions on those accounts.
         </p>
 
         <h3 className="text-xl font-semibold mb-3 mt-6">AddressDriver</h3>
         <p className="text-gray-300 mb-4">
-          Enables each wallet address to manage a unique account in Xylkit. No registration required — 
-          any address can start using Xylkit immediately. Your account ID is simply your address as a number,
-          making it easy to look up accounts and recover addresses from IDs.
+          Enables each wallet address to manage a unique account in Xylkit. No registration
+          required — any address can start using Xylkit immediately. Your account ID is
+          simply your address as a number, making it easy to look up accounts and recover
+          addresses from IDs.
         </p>
 
         <CodeBlock
@@ -441,9 +486,10 @@ fun calc_token_id_internal(minter: address, salt: u64): u256 {
 
         <h3 className="text-xl font-semibold mb-3 mt-8">NFTDriver</h3>
         <p className="text-gray-300 mb-4">
-          Allows users to create unlimited NFT-based accounts, each with its own balance and streaming settings. 
-          Only the NFT holder can control the associated account. Token IDs combine the minter's address with a 
-          salt, ensuring uniqueness while allowing deterministic ID calculation.
+          Allows users to create unlimited NFT-based accounts, each with its own balance and
+          streaming settings. Only the NFT holder can control the associated account. Token
+          IDs combine the minter's address with a salt, ensuring uniqueness while allowing
+          deterministic ID calculation.
         </p>
 
         <CodeBlock
@@ -485,15 +531,17 @@ fun calc_token_id_internal(minter: address, salt: u64): u256 {
         <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg px-6 py-1 my-6">
           <p className="text-purple-300 font-semibold mb-2">🔌 Extensible Architecture</p>
           <p className="text-gray-300">
-            The driver model makes it straightforward to add new account types. Future drivers could enable 
-            accounts controlled by multisigs, DAOs, or other on-chain entities. Each driver just needs to 
-            implement the authentication logic and call into the core Xylkit modules.
+            The driver model makes it straightforward to add new account types. Future
+            drivers could enable accounts controlled by multisigs, DAOs, or other on-chain
+            entities. Each driver just needs to implement the authentication logic and call
+            into the core Xylkit modules.
           </p>
           <p className="text-gray-300 mt-2 text-sm">
-            <strong>Note for developers:</strong> When creating new drivers, carefully design your account ID 
-            structure to avoid collisions with existing drivers. AddressDriver uses full 256-bit addresses, 
-            while NFTDriver uses a 160-bit minter + 64-bit salt layout. New drivers should use distinct bit 
-            patterns or reserved ranges to ensure account IDs remain globally unique.
+            <strong>Note for developers:</strong> When creating new drivers, carefully
+            design your account ID structure to avoid collisions with existing drivers.
+            AddressDriver uses full 256-bit addresses, while NFTDriver uses a 160-bit minter
+            + 64-bit salt layout. New drivers should use distinct bit patterns or reserved
+            ranges to ensure account IDs remain globally unique.
           </p>
         </div>
       </section>
@@ -508,11 +556,11 @@ fun calc_token_id_internal(minter: address, salt: u64): u256 {
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Account Metadata</h1>
-        
+
         <p className="text-gray-300 mb-4">
-          Xylkit includes functionality for associating general metadata with accounts. The authority to add 
-          metadata rests with the account owner, and apps can build on this capability to store any kind of 
-          metadata they need.
+          Xylkit includes functionality for associating general metadata with accounts. The
+          authority to add metadata rests with the account owner, and apps can build on this
+          capability to store any kind of metadata they need.
         </p>
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Use Cases</h2>
@@ -524,8 +572,8 @@ fun calc_token_id_internal(minter: address, salt: u64): u256 {
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Emitting Metadata</h2>
         <p className="text-gray-300 mb-4">
-          Metadata is emitted as events that can be indexed off-chain. The keys and values are not standardized 
-          by the protocol — it's up to users to establish conventions.
+          Metadata is emitted as events that can be indexed off-chain. The keys and values
+          are not standardized by the protocol — it's up to users to establish conventions.
         </p>
 
         <CodeBlock
@@ -566,31 +614,35 @@ struct AccountMetadataEmitted has drop, store {
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Inner Workings</h1>
-        
+
         <p className="text-gray-300 text-lg mb-6">
-          This section explains the core mechanics of how streaming is implemented in Xylkit's Move contracts.
+          This section explains the core mechanics of how streaming is implemented in
+          Xylkit's Move contracts.
         </p>
 
         <h2 className="text-2xl font-semibold mb-4">Design Principles</h2>
         <p className="text-gray-300 mb-4">
-          Xylkit allows users to set up and manage continuous transfers of funds from one account to another 
-          over time. Tokens are not sent directly to recipients — instead, the contract tracks balances and 
-          allows receivers to collect funds when they wish.
+          Xylkit allows users to set up and manage continuous transfers of funds from one
+          account to another over time. Tokens are not sent directly to recipients —
+          instead, the contract tracks balances and allows receivers to collect funds when
+          they wish.
         </p>
 
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-6 py-1 my-6">
           <p className="text-yellow-300 font-semibold mb-2">Gas Efficiency</p>
           <p className="text-gray-300">
-            Xylkit is designed to be gas-efficient even with many senders streaming to a single receiver. 
-            Instead of storing individual stream details, the protocol uses <strong>cycles</strong> and 
+            Xylkit is designed to be gas-efficient even with many senders streaming to a
+            single receiver. Instead of storing individual stream details, the protocol uses{" "}
+            <strong>cycles</strong> and
             <strong>deltas</strong> to aggregate funds efficiently.
           </p>
         </div>
 
         <h3 className="text-xl font-semibold mb-3 mt-8">Cycles</h3>
         <p className="text-gray-300 mb-4">
-          The timeline is divided into fixed-length cycles (default: 60 seconds). All funds streamed to a 
-          receiver during a cycle are aggregated together. Funds become receivable only after the cycle ends.
+          The timeline is divided into fixed-length cycles (default: 60 seconds). All funds
+          streamed to a receiver during a cycle are aggregated together. Funds become
+          receivable only after the cycle ends.
         </p>
 
         <CodeBlock
@@ -611,8 +663,8 @@ fun cycle_of(ts: u64, cycle_secs: u64): u64 {
 
         <h3 className="text-xl font-semibold mb-3 mt-8">Receiver Deltas</h3>
         <p className="text-gray-300 mb-4">
-          For efficiency, we store <strong>deltas</strong> (rate changes) per cycle rather than full amounts. 
-          If no delta is stored for a cycle, the previous rate continues.
+          For efficiency, we store <strong>deltas</strong> (rate changes) per cycle rather
+          than full amounts. If no delta is stored for a cycle, the previous rate continues.
         </p>
 
         <CodeBlock
@@ -635,7 +687,8 @@ struct AmtDelta has copy, drop, store {
 
         <h3 className="text-xl font-semibold mb-3 mt-8">Scheduled Streams</h3>
         <p className="text-gray-300 mb-4">
-          Streams can be configured to start immediately or at a future time, and can have an optional duration.
+          Streams can be configured to start immediately or at a future time, and can have
+          an optional duration.
         </p>
 
         <CodeBlock
@@ -661,18 +714,19 @@ struct AmtDelta has copy, drop, store {
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Fractional Amounts</h1>
-        
+
         <h2 className="text-2xl font-semibold mb-4">Token Decimals</h2>
         <p className="text-gray-300 mb-4">
-          Tokens in Move are indivisible at the smart contract level. What appears as "2.5 tokens" is actually 
-          stored as a larger integer with decimal places applied for display. For example, a token with 8 decimals 
-          stores 2.5 as 250,000,000.
+          Tokens in Move are indivisible at the smart contract level. What appears as "2.5
+          tokens" is actually stored as a larger integer with decimal places applied for
+          display. For example, a token with 8 decimals stores 2.5 as 250,000,000.
         </p>
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Sub-Token Precision</h2>
         <p className="text-gray-300 mb-4">
-          Streaming rates (<code>amt_per_sec</code>) have <strong>9 extra decimals</strong> for sub-token precision. 
-          This allows expressing rates smaller than 1 token unit per second.
+          Streaming rates (<code>amt_per_sec</code>) have <strong>9 extra decimals</strong>{" "}
+          for sub-token precision. This allows expressing rates smaller than 1 token unit
+          per second.
         </p>
 
         <CodeBlock
@@ -695,12 +749,15 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Whole Token Transfers</h2>
         <p className="text-gray-300 mb-4">
-          Despite sub-token precision in rates, actual transfers are always whole token units. Partial amounts 
-          accumulate in the sender's balance until they add up to whole units.
+          Despite sub-token precision in rates, actual transfers are always whole token
+          units. Partial amounts accumulate in the sender's balance until they add up to
+          whole units.
         </p>
 
         <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg px-6 py-1 my-6">
-          <p className="text-purple-300 font-semibold mb-2">Example: Streaming 1.4 tokens/second</p>
+          <p className="text-purple-300 font-semibold mb-2">
+            Example: Streaming 1.4 tokens/second
+          </p>
           <ul className="list-disc list-inside text-gray-300 space-y-1">
             <li>Second 1: 1 token moved, 0.4 remains with sender</li>
             <li>Second 2: 1 token moved, 0.8 remains with sender</li>
@@ -710,8 +767,8 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Minimum Rate</h2>
         <p className="text-gray-300 mb-4">
-          The minimum valid streaming rate is 1 token unit per cycle. Rates lower than this would result in 
-          no token movement and are rejected.
+          The minimum valid streaming rate is 1 token unit per cycle. Rates lower than this
+          would result in no token movement and are rejected.
         </p>
 
         <CodeBlock
@@ -736,9 +793,10 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Xylkit Features</h1>
-        
+
         <p className="text-gray-300 text-lg mb-6">
-          Xylkit brings powerful streaming and splitting capabilities to the Move ecosystem with these key features:
+          Xylkit brings powerful streaming and splitting capabilities to the Move ecosystem
+          with these key features:
         </p>
 
         <div className="grid md:grid-cols-2 gap-6 mt-8">
@@ -780,7 +838,8 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
           <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
             <h3 className="text-lg font-semibold mb-3 text-blue-400">Unified Protocol</h3>
             <p className="text-gray-300 text-sm">
-              One set of contracts for streaming and splitting, enabling flexible token routing.
+              One set of contracts for streaming and splitting, enabling flexible token
+              routing.
             </p>
           </div>
         </div>
@@ -796,13 +855,13 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">Credits</h1>
-        
+
         <p className="text-gray-300 text-lg mb-6">
           Xylkit is inspired by and built upon the concepts pioneered by the{" "}
-          <a 
-            href="https://drips.network" 
-            target="_blank" 
-            rel="noopener noreferrer" 
+          <a
+            href="https://drips.network"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-blue-400 hover:underline"
           >
             Drips Protocol
@@ -811,21 +870,21 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
         </p>
 
         <p className="text-gray-300 mb-4">
-          We've adapted and reimplemented the core concepts for the Move ecosystem, bringing powerful 
-          token streaming capabilities to Movement and Aptos. While the fundamental mechanics remain 
-          similar, Xylkit is optimized for Move's resource-oriented programming model and works 
-          natively with Fungible Assets (FA).
+          We've adapted and reimplemented the core concepts for the Move ecosystem, bringing
+          powerful token streaming capabilities to Movement. While the fundamental mechanics
+          remain similar, Xylkit is optimized for Move's resource-oriented programming model
+          and works natively with Fungible Assets (FA).
         </p>
 
         <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/30 rounded-lg px-6 py-1 my-6">
           <p className="text-purple-300 font-semibold mb-2">🙏 Special Thanks</p>
           <p className="text-gray-300">
-            Special thanks to the Drips team for their innovative work on decentralized streaming infrastructure. 
-            Learn more about the original protocol at{" "}
-            <a 
-              href="https://docs.drips.network" 
-              target="_blank" 
-              rel="noopener noreferrer" 
+            Special thanks to the Drips team for their innovative work on decentralized
+            streaming infrastructure. Learn more about the original protocol at{" "}
+            <a
+              href="https://docs.drips.network"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-blue-400 hover:underline"
             >
               docs.drips.network
@@ -844,13 +903,14 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
         }`}
       >
         <h1 className="text-4xl font-bold mb-8">FAQ</h1>
-        
+
         <div className="space-y-6">
           <div>
             <h3 className="text-xl font-semibold mb-3">Are there fees for using Xylkit?</h3>
             <p className="text-gray-300">
-              The Xylkit Protocol is free to use and does not impose any fees on users. Users will still need to pay gas
-              fees to interact with the contracts as they would with any contract on Movement/Aptos.
+              The Xylkit Protocol is free to use and does not impose any fees on users.
+              Users will still need to pay gas fees to interact with the contracts as they
+              would with any contract on Movement/Aptos.
             </p>
             <p className="text-gray-300 mt-2">
               Third-party apps building on Xylkit may choose to impose fees of their own.
@@ -858,48 +918,55 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
           </div>
 
           <div>
-            <h3 className="text-xl font-semibold mb-3">Can I split or stream funds directly to exchange-managed addresses?</h3>
+            <h3 className="text-xl font-semibold mb-3">
+              Can I split or stream funds directly to exchange-managed addresses?
+            </h3>
             <p className="text-gray-300">
-              No. When an address receives funds on Xylkit, the owner of that address needs to <em>collect</em> them 
-              before they are transferred to their wallet. Exchanges typically offer custodial addresses that don't 
-              allow signing contract interactions. Funds sent to such addresses may be unrecoverable. Only split or 
-              stream funds to self-custodial wallets.
+              No. When an address receives funds on Xylkit, the owner of that address needs
+              to <em>collect</em> them before they are transferred to their wallet.
+              Exchanges typically offer custodial addresses that don't allow signing
+              contract interactions. Funds sent to such addresses may be unrecoverable. Only
+              split or stream funds to self-custodial wallets.
             </p>
           </div>
 
           <div>
-            <h3 className="text-xl font-semibold mb-3">Do I need MOVE/APT to send or receive tokens?</h3>
+            <h3 className="text-xl font-semibold mb-3">
+              Do I need MOVE to send or receive tokens?
+            </h3>
             <p className="text-gray-300">
-              Users need the native gas token (MOVE on Movement, APT on Aptos) to cover transaction fees when creating 
-              streams or splits. You don't need gas to receive funds, but you will need some when you're ready to 
-              collect them.
+              Users need the native gas token (MOVE) to cover transaction fees when creating
+              streams or splits. You don't need gas to receive funds, but you will need some
+              when you're ready to collect them.
             </p>
           </div>
 
           <div>
             <h3 className="text-xl font-semibold mb-3">What happens to unclaimed funds?</h3>
             <p className="text-gray-300">
-              Funds that have been streamed but not collected remain in the protocol waiting for the recipient to 
-              claim them. There is currently no expiration on unclaimed funds.
+              Funds that have been streamed but not collected remain in the protocol waiting
+              for the recipient to claim them. There is currently no expiration on unclaimed
+              funds.
             </p>
           </div>
 
           <div>
             <h3 className="text-xl font-semibold mb-3">How do cycles work?</h3>
             <p className="text-gray-300">
-              The timeline is divided into fixed-length cycles (default: 60 seconds). Funds streamed during a cycle 
-              become receivable only after the cycle ends. This aggregation makes receiving from many senders 
-              gas-efficient. You can also "squeeze" funds from the current cycle if you need them immediately, 
-              though this costs more gas.
+              The timeline is divided into fixed-length cycles (default: 60 seconds). Funds
+              streamed during a cycle become receivable only after the cycle ends. This
+              aggregation makes receiving from many senders gas-efficient. You can also
+              "squeeze" funds from the current cycle if you need them immediately, though
+              this costs more gas.
             </p>
           </div>
 
           <div>
             <h3 className="text-xl font-semibold mb-3">Can I update or cancel streams?</h3>
             <p className="text-gray-300">
-              Yes, you can update your streams configuration at any time. However, you can only change streams for 
-              the future — funds already streamed in the past cannot be recovered. When you update, any unstreamed 
-              balance can be withdrawn.
+              Yes, you can update your streams configuration at any time. However, you can
+              only change streams for the future — funds already streamed in the past cannot
+              be recovered. When you update, any unstreamed balance can be withdrawn.
             </p>
           </div>
         </div>
@@ -908,19 +975,19 @@ const AMT_PER_SEC_MULTIPLIER: u256 = 1_000_000_000;
       <footer className="mt-16 pt-8 border-t border-gray-800 text-center text-gray-500 text-sm">
         <p>Xylkit Protocol Documentation</p>
         <p className="mt-2">
-          <a 
-            href="https://github.com/kelvinpraises/xylkit" 
-            target="_blank" 
-            rel="noopener noreferrer" 
+          <a
+            href="https://github.com/kelvinpraises/xylkit"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-blue-400 hover:underline"
           >
             GitHub Repository
           </a>
           {" · "}
-          <a 
-            href="https://drips.network" 
-            target="_blank" 
-            rel="noopener noreferrer" 
+          <a
+            href="https://drips.network"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-blue-400 hover:underline"
           >
             Inspired by Drips Protocol

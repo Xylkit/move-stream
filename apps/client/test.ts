@@ -1,22 +1,22 @@
 /**
  * XYLKIT DRIPS PROTOCOL - COMPREHENSIVE TEST
- * 
+ *
  * Story: Alice wants to pay Bob a salary stream. Charlie is a middleman who
  * takes a 50% cut of any funds he receives and forwards the rest to Bob.
- * 
+ *
  * This test demonstrates the complete protocol flow:
- * 
+ *
  * ACT 1: Direct Payments (give, split, collect)
  *   - Alice gives Charlie 0.1 APT directly
  *   - Charlie has configured 50% split to Bob
  *   - Charlie splits: 0.05 APT to Bob, 0.05 APT to himself
  *   - Charlie collects his 0.05 APT to wallet
- * 
+ *
  * ACT 2: Streaming Payments (set_streams, squeeze, receive)
- *   - Alice creates a stream to Bob at 0.01 APT/sec
+ *   - Alice creates a stream to Bob at 0.01 MOVE/sec
  *   - Bob squeezes funds from current cycle (immediate access)
  *   - Bob receives funds from completed cycles
- * 
+ *
  * ACT 3: Stream Management (balance_at, withdraw, stop)
  *   - Alice checks her current stream balance
  *   - Alice withdraws 1 APT from the stream
@@ -37,9 +37,12 @@ import { toI128Bits } from "./src/utils/signed-integers";
 //                              CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || "0xe845691ddd1e7f44fdf7189d0f186bcb43ebfb06371909dd6833553df8ce262c";
+const CONTRACT_ADDRESS =
+  process.env.CONTRACT_ADDRESS ||
+  "0xe845691ddd1e7f44fdf7189d0f186bcb43ebfb06371909dd6833553df8ce262c";
 const NODE_URL = "http://127.0.0.1:8080/v1";
-const APT_FA_METADATA = "0x000000000000000000000000000000000000000000000000000000000000000a";
+const APT_FA_METADATA =
+  "0x000000000000000000000000000000000000000000000000000000000000000a";
 const CYCLE_DURATION_SECS = 60;
 
 const config = new AptosConfig({
@@ -74,13 +77,27 @@ const logAct = (title: string) => {
   console.log("═".repeat(80));
 };
 const logScene = (title: string) => console.log(`\n  ${c.bold}── ${title} ──${c.reset}`);
-const logAction = (who: string, action: string) => console.log(`  ${c.cyan}${who}${c.reset} ${action}`);
+const logAction = (who: string, action: string) =>
+  console.log(`  ${c.cyan}${who}${c.reset} ${action}`);
 const logResult = (msg: string) => console.log(`    → ${msg}`);
-const logBalance = (who: string, wallet: bigint, splittable: bigint, collectable: bigint) => {
-  console.log(`    ${c.dim}${who}: wallet=${apt(wallet)}, splittable=${apt(splittable)}, collectable=${apt(collectable)}${c.reset}`);
+const logBalance = (
+  who: string,
+  wallet: bigint,
+  splittable: bigint,
+  collectable: bigint,
+) => {
+  console.log(
+    `    ${c.dim}${who}: wallet=${apt(wallet)}, splittable=${apt(splittable)}, collectable=${apt(collectable)}${c.reset}`,
+  );
 };
-const pass = (msg: string) => { console.log(`  ${c.green}✓ ${msg}${c.reset}`); return true; };
-const fail = (msg: string) => { console.log(`  ${c.red}✗ ${msg}${c.reset}`); return false; };
+const pass = (msg: string) => {
+  console.log(`  ${c.green}✓ ${msg}${c.reset}`);
+  return true;
+};
+const fail = (msg: string) => {
+  console.log(`  ${c.red}✗ ${msg}${c.reset}`);
+  return false;
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //                              HELPERS
@@ -129,33 +146,60 @@ const exec = async (signer: Account, fn: MoveFunctionId, args: any[]): Promise<s
 };
 
 const getSplittable = async (id: bigint): Promise<bigint> => {
-  const [r] = await view<[string]>(`${CONTRACT_ADDRESS}::drips::splittable`, [id.toString(), APT_FA_METADATA]);
+  const [r] = await view<[string]>(`${CONTRACT_ADDRESS}::drips::splittable`, [
+    id.toString(),
+    APT_FA_METADATA,
+  ]);
   return BigInt(r);
 };
 
 const getCollectable = async (id: bigint): Promise<bigint> => {
-  const [r] = await view<[string]>(`${CONTRACT_ADDRESS}::drips::collectable`, [id.toString(), APT_FA_METADATA]);
+  const [r] = await view<[string]>(`${CONTRACT_ADDRESS}::drips::collectable`, [
+    id.toString(),
+    APT_FA_METADATA,
+  ]);
   return BigInt(r);
 };
 
 const getReceivableCycles = async (id: bigint): Promise<bigint> => {
-  const [r] = await view<[string]>(`${CONTRACT_ADDRESS}::drips::receivable_streams_cycles`, [id.toString(), APT_FA_METADATA]);
+  const [r] = await view<[string]>(
+    `${CONTRACT_ADDRESS}::drips::receivable_streams_cycles`,
+    [id.toString(), APT_FA_METADATA],
+  );
   return BigInt(r);
 };
 
 const getStreamsState = async (id: bigint) => {
-  const [hash, histHash, updateTime, balance, maxEnd] = await view<[string, string, string, string, string]>(
-    `${CONTRACT_ADDRESS}::drips::streams_state`, [id.toString(), APT_FA_METADATA]
-  );
-  return { hash, histHash, updateTime: BigInt(updateTime), balance: BigInt(balance), maxEnd: BigInt(maxEnd) };
+  const [hash, histHash, updateTime, balance, maxEnd] = await view<
+    [string, string, string, string, string]
+  >(`${CONTRACT_ADDRESS}::drips::streams_state`, [id.toString(), APT_FA_METADATA]);
+  return {
+    hash,
+    histHash,
+    updateTime: BigInt(updateTime),
+    balance: BigInt(balance),
+    maxEnd: BigInt(maxEnd),
+  };
 };
 
 const getBalanceAt = async (
-  id: bigint, receiverIds: string[], streamIds: string[], amtPerSecs: string[],
-  starts: string[], durations: string[], timestamp: bigint
+  id: bigint,
+  receiverIds: string[],
+  streamIds: string[],
+  amtPerSecs: string[],
+  starts: string[],
+  durations: string[],
+  timestamp: bigint,
 ): Promise<bigint> => {
   const [r] = await view<[string]>(`${CONTRACT_ADDRESS}::drips::balance_at`, [
-    id.toString(), APT_FA_METADATA, receiverIds, streamIds, amtPerSecs, starts, durations, timestamp.toString()
+    id.toString(),
+    APT_FA_METADATA,
+    receiverIds,
+    streamIds,
+    amtPerSecs,
+    starts,
+    durations,
+    timestamp.toString(),
   ]);
   return BigInt(r);
 };
@@ -184,7 +228,9 @@ async function main() {
     process.exit(1);
   }
 
-  const funder = Account.fromPrivateKey({ privateKey: new Ed25519PrivateKey(privateKeyHex) });
+  const funder = Account.fromPrivateKey({
+    privateKey: new Ed25519PrivateKey(privateKeyHex),
+  });
   const alice = Account.generate();
   const bob = Account.generate();
   const charlie = Account.generate();
@@ -224,7 +270,9 @@ async function main() {
 
   let testsPassed = 0;
   let testsFailed = 0;
-  const assert = (cond: boolean, msg: string) => { cond ? (pass(msg), testsPassed++) : (fail(msg), testsFailed++); };
+  const assert = (cond: boolean, msg: string) => {
+    cond ? (pass(msg), testsPassed++) : (fail(msg), testsFailed++);
+  };
 
   // ═══════════════════════════════════════════════════════════════════════════
   //                    ACT 1: DIRECT PAYMENTS
@@ -234,10 +282,11 @@ async function main() {
   // Scene 1.1: Charlie configures his splits
   logScene("Scene 1: Charlie sets up his 50% split to Bob");
   logAction("Charlie", "configures splits: 50% to Bob, 50% to self");
-  
+
   const splitWeight = 500_000; // 50%
   await exec(charlie, `${CONTRACT_ADDRESS}::address_driver::set_splits`, [
-    [bobId.toString()], [splitWeight.toString()]
+    [bobId.toString()],
+    [splitWeight.toString()],
   ]);
   logResult("Split configuration saved");
   assert(true, "Charlie configured 50% split to Bob");
@@ -245,55 +294,77 @@ async function main() {
   // Scene 1.2: Alice gives Charlie 0.1 APT
   logScene("Scene 2: Alice pays Charlie directly");
   const giveAmount = 10_000_000n; // 0.1 APT
-  
+
   logAction("Alice", `gives ${apt(giveAmount)} to Charlie`);
   const charlieSplittableBefore = await getSplittable(charlieId);
-  
+
   await exec(alice, `${CONTRACT_ADDRESS}::address_driver::give`, [
-    charlieId.toString(), APT_FA_METADATA, giveAmount.toString()
+    charlieId.toString(),
+    APT_FA_METADATA,
+    giveAmount.toString(),
   ]);
-  
+
   const charlieSplittableAfter = await getSplittable(charlieId);
-  logResult(`Charlie's splittable: ${apt(charlieSplittableBefore)} → ${c.green}${apt(charlieSplittableAfter)}${c.reset}`);
-  assert(charlieSplittableAfter - charlieSplittableBefore === giveAmount, "Alice's give() transferred correct amount");
+  logResult(
+    `Charlie's splittable: ${apt(charlieSplittableBefore)} → ${c.green}${apt(charlieSplittableAfter)}${c.reset}`,
+  );
+  assert(
+    charlieSplittableAfter - charlieSplittableBefore === giveAmount,
+    "Alice's give() transferred correct amount",
+  );
 
   // Scene 1.3: Bob triggers Charlie's split (permissionless!)
   logScene("Scene 3: Bob triggers Charlie's split (permissionless)");
-  log(`  ${c.dim}Anyone can call split() for any account - Bob pushes funds through${c.reset}`);
-  
+  log(
+    `  ${c.dim}Anyone can call split() for any account - Bob pushes funds through${c.reset}`,
+  );
+
   logAction("Bob", "calls split on Charlie's account (50% to Bob, 50% to Charlie)");
-  
+
   const bobSplittableBefore = await getSplittable(bobId);
-  
+
   await exec(bob, `${CONTRACT_ADDRESS}::drips::split`, [
-    charlieId.toString(), APT_FA_METADATA, [bobId.toString()], [splitWeight.toString()]
+    charlieId.toString(),
+    APT_FA_METADATA,
+    [bobId.toString()],
+    [splitWeight.toString()],
   ]);
-  
+
   const bobSplittableAfter = await getSplittable(bobId);
   const charlieCollectable = await getCollectable(charlieId);
-  
-  logResult(`Bob's splittable: ${apt(bobSplittableBefore)} → ${c.green}${apt(bobSplittableAfter)}${c.reset} (+${apt(giveAmount/2n)})`);
+
+  logResult(
+    `Bob's splittable: ${apt(bobSplittableBefore)} → ${c.green}${apt(bobSplittableAfter)}${c.reset} (+${apt(giveAmount / 2n)})`,
+  );
   logResult(`Charlie's collectable: ${c.green}${apt(charlieCollectable)}${c.reset}`);
-  
-  assert(bobSplittableAfter - bobSplittableBefore === giveAmount / 2n, "Bob received 50% from Charlie's split");
+
+  assert(
+    bobSplittableAfter - bobSplittableBefore === giveAmount / 2n,
+    "Bob received 50% from Charlie's split",
+  );
   assert(charlieCollectable === giveAmount / 2n, "Charlie kept 50% in collectable");
 
   // Scene 1.4: Bob triggers Charlie's collect too (permissionless!)
   logScene("Scene 4: Charlie collects to his wallet");
-  log(`  ${c.dim}Only Charlie can collect to his own wallet (requires his signature)${c.reset}`);
-  
+  log(
+    `  ${c.dim}Only Charlie can collect to his own wallet (requires his signature)${c.reset}`,
+  );
+
   logAction("Charlie", "collects funds to wallet");
-  
+
   const charlieWalletBefore = await getWalletBalance(charlieAddr);
-  
+
   await exec(charlie, `${CONTRACT_ADDRESS}::address_driver::collect`, [
-    APT_FA_METADATA, charlieAddr
+    APT_FA_METADATA,
+    charlieAddr,
   ]);
-  
+
   const charlieWalletAfter = await getWalletBalance(charlieAddr);
   const collected = charlieWalletAfter - charlieWalletBefore;
-  
-  logResult(`Charlie's wallet: ${apt(charlieWalletBefore)} → ${c.green}${apt(charlieWalletAfter)}${c.reset} (+${apt(collected)})`);
+
+  logResult(
+    `Charlie's wallet: ${apt(charlieWalletBefore)} → ${c.green}${apt(charlieWalletAfter)}${c.reset} (+${apt(collected)})`,
+  );
   assert(collected > 0n, "Charlie collected funds to wallet");
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -305,21 +376,36 @@ async function main() {
   logScene("Scene 1: Alice starts paying Bob's salary");
   const streamRate = 0.01; // APT per second
   const amtPerSec = calcAmtPerSec(streamRate);
-  const streamDeposit = 5_00000000n; // 5 APT
+  const streamDeposit = 5_00000000n; // 5 MOVE
 
-  logAction("Alice", `creates stream to Bob: ${streamRate} APT/sec, deposits ${apt(streamDeposit)}`);
-  
+  logAction(
+    "Alice",
+    `creates stream to Bob: ${streamRate} MOVE/sec, deposits ${apt(streamDeposit)}`,
+  );
+
   await exec(alice, `${CONTRACT_ADDRESS}::address_driver::set_streams`, [
     APT_FA_METADATA,
-    [], [], [], [], [], // No current receivers
+    [],
+    [],
+    [],
+    [],
+    [], // No current receivers
     toI128Bits(streamDeposit).toString(),
-    [bobId.toString()], ["1"], [amtPerSec.toString()], ["0"], ["0"],
-    "0", "0", aliceAddr
+    [bobId.toString()],
+    ["1"],
+    [amtPerSec.toString()],
+    ["0"],
+    ["0"],
+    "0",
+    "0",
+    aliceAddr,
   ]);
 
   const streamState = await getStreamsState(aliceId);
   logResult(`Stream created! Balance: ${c.green}${apt(streamState.balance)}${c.reset}`);
-  logResult(`At ${streamRate} APT/sec, this will last ~${Number(streamState.balance) / 1e8 / streamRate / 60} minutes`);
+  logResult(
+    `At ${streamRate} MOVE/sec, this will last ~${Number(streamState.balance) / 1e8 / streamRate / 60} minutes`,
+  );
   assert(streamState.balance === streamDeposit, "Stream created with correct deposit");
 
   const streamConfig = {
@@ -332,60 +418,86 @@ async function main() {
 
   // Scene 2.2: Bob squeezes (immediate access)
   logScene("Scene 2: Bob needs money NOW (squeeze)");
-  log(`  ${c.dim}Bob can't wait for the cycle to end, he squeezes funds immediately${c.reset}`);
-  
+  log(
+    `  ${c.dim}Bob can't wait for the cycle to end, he squeezes funds immediately${c.reset}`,
+  );
+
   logAction("Bob", "waits 10 seconds for funds to accumulate...");
   await sleep(10);
-  
+
   logAction("Bob", "squeezes funds from current (incomplete) cycle");
   const bobSplittableBeforeSqueeze = await getSplittable(bobId);
   const bobCollectableBeforeSqueeze = await getCollectable(bobId);
-  
+
   await exec(bob, `${CONTRACT_ADDRESS}::drips::squeeze_streams`, [
-    bobId.toString(), APT_FA_METADATA, aliceId.toString(),
-    "", [""],
-    [[bobId.toString()]], [["1"]], [[amtPerSec.toString()]], [["0"]], [["0"]],
-    [streamState.updateTime.toString()], [streamState.maxEnd.toString()],
+    bobId.toString(),
+    APT_FA_METADATA,
+    aliceId.toString(),
+    "",
+    [""],
+    [[bobId.toString()]],
+    [["1"]],
+    [[amtPerSec.toString()]],
+    [["0"]],
+    [["0"]],
+    [streamState.updateTime.toString()],
+    [streamState.maxEnd.toString()],
   ]);
-  
+
   const bobSplittableAfterSqueeze = await getSplittable(bobId);
   const bobCollectableAfterSqueeze = await getCollectable(bobId);
   const squeezed = bobSplittableAfterSqueeze - bobSplittableBeforeSqueeze;
-  
-  logResult(`Bob squeezed: ${c.green}+${apt(squeezed)}${c.reset} → moved to ${c.yellow}splittable${c.reset}`);
+
+  logResult(
+    `Bob squeezed: ${c.green}+${apt(squeezed)}${c.reset} → moved to ${c.yellow}splittable${c.reset}`,
+  );
   logResult(`Bob's balances after squeeze_streams():`);
-  logResult(`  splittable: ${c.green}${apt(bobSplittableAfterSqueeze)}${c.reset} (funds land here first)`);
+  logResult(
+    `  splittable: ${c.green}${apt(bobSplittableAfterSqueeze)}${c.reset} (funds land here first)`,
+  );
   logResult(`  collectable: ${apt(bobCollectableAfterSqueeze)} (unchanged until split)`);
   assert(squeezed > 0n, "squeeze_streams() returned funds from current cycle");
 
   // Scene 2.3: Wait for cycle, then receive
   logScene("Scene 3: Bob waits for cycle to complete");
-  log(`  ${c.dim}After a full cycle (${CYCLE_DURATION_SECS}s), Bob can receive more efficiently${c.reset}`);
-  
+  log(
+    `  ${c.dim}After a full cycle (${CYCLE_DURATION_SECS}s), Bob can receive more efficiently${c.reset}`,
+  );
+
   logAction("Bob", `waits for cycle to complete...`);
   await sleep(CYCLE_DURATION_SECS + 5);
-  
+
   const cycles = await getReceivableCycles(bobId);
   logResult(`${cycles} cycle(s) ready to receive`);
-  
+
   if (cycles > 0n) {
     logAction("Bob", "receives funds from completed cycles");
     const bobSplittableBeforeReceive = await getSplittable(bobId);
     const bobCollectableBeforeReceive = await getCollectable(bobId);
-    
+
     await exec(bob, `${CONTRACT_ADDRESS}::drips::receive_streams`, [
-      bobId.toString(), APT_FA_METADATA, "100"
+      bobId.toString(),
+      APT_FA_METADATA,
+      "100",
     ]);
-    
+
     const bobSplittableAfterReceive = await getSplittable(bobId);
     const bobCollectableAfterReceive = await getCollectable(bobId);
     const received = bobSplittableAfterReceive - bobSplittableBeforeReceive;
-    
-    logResult(`Bob received: ${c.green}+${apt(received)}${c.reset} → moved to ${c.yellow}splittable${c.reset}`);
+
+    logResult(
+      `Bob received: ${c.green}+${apt(received)}${c.reset} → moved to ${c.yellow}splittable${c.reset}`,
+    );
     logResult(`Bob's balances after receive_streams():`);
-    logResult(`  splittable: ${apt(bobSplittableBeforeReceive)} → ${c.green}${apt(bobSplittableAfterReceive)}${c.reset} (funds land here first)`);
-    logResult(`  collectable: ${apt(bobCollectableBeforeReceive)} → ${apt(bobCollectableAfterReceive)} (unchanged until split)`);
-    log(`  ${c.dim}Note: Bob must call split() then collect() to move funds to wallet${c.reset}`);
+    logResult(
+      `  splittable: ${apt(bobSplittableBeforeReceive)} → ${c.green}${apt(bobSplittableAfterReceive)}${c.reset} (funds land here first)`,
+    );
+    logResult(
+      `  collectable: ${apt(bobCollectableBeforeReceive)} → ${apt(bobCollectableAfterReceive)} (unchanged until split)`,
+    );
+    log(
+      `  ${c.dim}Note: Bob must call split() then collect() to move funds to wallet${c.reset}`,
+    );
     assert(received > 0n, "receive_streams() claimed funds from completed cycles");
   }
 
@@ -397,13 +509,18 @@ async function main() {
   // Scene 3.1: Alice checks balance
   logScene("Scene 1: Alice checks her stream balance");
   logAction("Alice", "queries current stream balance");
-  
+
   const currentTs = await getCurrentTimestamp();
   const currentBalance = await getBalanceAt(
-    aliceId, streamConfig.receiverIds, streamConfig.streamIds,
-    streamConfig.amtPerSecs, streamConfig.starts, streamConfig.durations, currentTs
+    aliceId,
+    streamConfig.receiverIds,
+    streamConfig.streamIds,
+    streamConfig.amtPerSecs,
+    streamConfig.starts,
+    streamConfig.durations,
+    currentTs,
   );
-  
+
   logResult(`Original deposit: ${apt(streamDeposit)}`);
   logResult(`Current balance: ${c.yellow}${apt(currentBalance)}${c.reset}`);
   logResult(`Streamed so far: ${apt(streamDeposit - currentBalance)}`);
@@ -412,47 +529,70 @@ async function main() {
   // Scene 3.2: Alice withdraws some funds
   logScene("Scene 2: Alice withdraws from stream");
   const withdrawAmount = 1_00000000n; // 1 APT
-  
+
   logAction("Alice", `withdraws ${apt(withdrawAmount)} from stream (keeping it running)`);
   const aliceWalletBefore = await getWalletBalance(aliceAddr);
-  
+
   await exec(alice, `${CONTRACT_ADDRESS}::address_driver::set_streams`, [
     APT_FA_METADATA,
-    streamConfig.receiverIds, streamConfig.streamIds, streamConfig.amtPerSecs,
-    streamConfig.starts, streamConfig.durations,
+    streamConfig.receiverIds,
+    streamConfig.streamIds,
+    streamConfig.amtPerSecs,
+    streamConfig.starts,
+    streamConfig.durations,
     toI128Bits(-withdrawAmount).toString(), // Negative = withdraw
-    streamConfig.receiverIds, streamConfig.streamIds, streamConfig.amtPerSecs,
-    streamConfig.starts, streamConfig.durations,
-    "0", "0", aliceAddr
+    streamConfig.receiverIds,
+    streamConfig.streamIds,
+    streamConfig.amtPerSecs,
+    streamConfig.starts,
+    streamConfig.durations,
+    "0",
+    "0",
+    aliceAddr,
   ]);
-  
+
   const aliceWalletAfter = await getWalletBalance(aliceAddr);
   const withdrawn = aliceWalletAfter - aliceWalletBefore;
-  
-  logResult(`Alice's wallet: ${apt(aliceWalletBefore)} → ${c.green}${apt(aliceWalletAfter)}${c.reset}`);
+
+  logResult(
+    `Alice's wallet: ${apt(aliceWalletBefore)} → ${c.green}${apt(aliceWalletAfter)}${c.reset}`,
+  );
   assert(withdrawn > 0n, "Withdraw returned funds to Alice");
 
   // Scene 3.3: Alice stops the stream
   logScene("Scene 3: Alice stops the stream");
   logAction("Alice", "stops stream and withdraws remaining balance");
-  
+
   const stateBeforeStop = await getStreamsState(aliceId);
   const aliceWalletBeforeStop = await getWalletBalance(aliceAddr);
-  
+
   await exec(alice, `${CONTRACT_ADDRESS}::address_driver::set_streams`, [
     APT_FA_METADATA,
-    streamConfig.receiverIds, streamConfig.streamIds, streamConfig.amtPerSecs,
-    streamConfig.starts, streamConfig.durations,
+    streamConfig.receiverIds,
+    streamConfig.streamIds,
+    streamConfig.amtPerSecs,
+    streamConfig.starts,
+    streamConfig.durations,
     toI128Bits(-stateBeforeStop.balance).toString(),
-    [], [], [], [], [], // Empty = stop streaming
-    "0", "0", aliceAddr
+    [],
+    [],
+    [],
+    [],
+    [], // Empty = stop streaming
+    "0",
+    "0",
+    aliceAddr,
   ]);
-  
+
   const stateAfterStop = await getStreamsState(aliceId);
   const aliceWalletAfterStop = await getWalletBalance(aliceAddr);
-  
-  logResult(`Stream balance: ${apt(stateBeforeStop.balance)} → ${c.green}${apt(stateAfterStop.balance)}${c.reset}`);
-  logResult(`Alice recovered: ${c.green}${apt(aliceWalletAfterStop - aliceWalletBeforeStop)}${c.reset}`);
+
+  logResult(
+    `Stream balance: ${apt(stateBeforeStop.balance)} → ${c.green}${apt(stateAfterStop.balance)}${c.reset}`,
+  );
+  logResult(
+    `Alice recovered: ${c.green}${apt(aliceWalletAfterStop - aliceWalletBeforeStop)}${c.reset}`,
+  );
   assert(stateAfterStop.balance === 0n, "Stream stopped and balance withdrawn");
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -1,7 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { getUser, triggerSync, getSyncStatus, timeAgo, type UserDeployment } from "../../lib/api";
+import { useEffect, useState } from "react";
+import {
+  getSyncStatus,
+  getUser,
+  timeAgo,
+  triggerSync,
+  type UserDeployment,
+} from "../../lib/api";
 
 export const Route = createFileRoute("/explorer/u/$address")({
   component: UserView,
@@ -19,7 +25,7 @@ function UserView() {
       const userData = await getUser(address);
       setDeployments(userData.deployments);
     } catch (err) {
-      console.error('Failed to fetch user:', err);
+      console.error("Failed to fetch user:", err);
     } finally {
       setLoading(false);
     }
@@ -32,7 +38,7 @@ function UserView() {
         setLastSynced(status.status[0].lastSyncedAt);
       }
     } catch (err) {
-      console.error('Failed to fetch sync status:', err);
+      console.error("Failed to fetch sync status:", err);
     }
   };
 
@@ -43,7 +49,7 @@ function UserView() {
       setLastSynced(result.lastSyncedAt);
       await fetchData();
     } catch (err) {
-      console.error('Sync failed:', err);
+      console.error("Sync failed:", err);
     } finally {
       setSyncing(false);
     }
@@ -51,10 +57,12 @@ function UserView() {
 
   useEffect(() => {
     // Trigger sync with user priority on mount
-    triggerSync({ user: address }).then((result) => {
-      setLastSynced(result.lastSyncedAt);
-    }).catch(() => {});
-    
+    triggerSync({ user: address })
+      .then((result) => {
+        setLastSynced(result.lastSyncedAt);
+      })
+      .catch(() => {});
+
     fetchData();
     fetchSyncStatus();
 
@@ -75,7 +83,7 @@ function UserView() {
 
   return (
     <div className="w-full max-w-5xl mx-auto mt-12 pb-20 animate-fade-in-up">
-      <Link 
+      <Link
         to="/explorer"
         className="text-slate-500 hover:text-white text-sm mb-6 flex items-center gap-2 transition-colors"
       >
@@ -89,13 +97,13 @@ function UserView() {
         </div>
         <div className="flex items-center gap-4">
           <div className="text-slate-600 text-xs">
-            {lastSynced ? `indexed ${timeAgo(lastSynced)}` : 'not indexed'}
-            <button 
+            {lastSynced ? `indexed ${timeAgo(lastSynced)}` : "not indexed"}
+            <button
               onClick={handleSync}
               disabled={syncing}
               className="ml-2 text-cyan-500 hover:text-cyan-400 disabled:opacity-50 focus:outline-none"
             >
-              <RefreshCw className={`w-3 h-3 inline ${syncing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3 h-3 inline ${syncing ? "animate-spin" : ""}`} />
             </button>
           </div>
           <button className="px-5 py-2.5 rounded-full bg-white/[0.03] border border-white/10 text-slate-400 text-sm hover:border-cyan-500/30 hover:text-white transition-all focus:outline-none">
@@ -111,13 +119,10 @@ function UserView() {
       ) : (
         <div className="space-y-6">
           {deployments.map((dep, i) => (
-            <div
-              key={i}
-              className="p-6 rounded-2xl bg-white/[0.02] border border-white/5"
-            >
+            <div key={i} className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <Link 
+                  <Link
                     to="/explorer/d/$address"
                     params={{ address: dep.address }}
                     className="text-white font-mono text-sm hover:text-cyan-400 transition-colors"
@@ -134,14 +139,18 @@ function UserView() {
                   <p className="text-xl font-light text-white">{dep.splittable}</p>
                   <p className="text-slate-500 text-xs">Splittable</p>
                   {Number(dep.splittable) > 0 && (
-                    <button className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 focus:outline-none">Split →</button>
+                    <button className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 focus:outline-none">
+                      Split →
+                    </button>
                   )}
                 </div>
                 <div className="p-4 rounded-xl bg-white/[0.02]">
                   <p className="text-xl font-light text-cyan-400">{dep.collectable}</p>
                   <p className="text-slate-500 text-xs">Collectable</p>
                   {Number(dep.collectable) > 0 && (
-                    <button className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 focus:outline-none">Collect →</button>
+                    <button className="mt-2 text-xs text-cyan-400 hover:text-cyan-300 focus:outline-none">
+                      Collect →
+                    </button>
                   )}
                 </div>
                 <div className="p-4 rounded-xl bg-white/[0.02]">
@@ -153,16 +162,26 @@ function UserView() {
               {/* Incoming Streams */}
               {dep.incoming.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Incoming Streams</p>
+                  <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">
+                    Incoming Streams
+                  </p>
                   <div className="space-y-2">
                     {dep.incoming.map((stream, j) => (
-                      <div key={j} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02]">
+                      <div
+                        key={j}
+                        className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02]"
+                      >
                         <span className="text-slate-400 text-sm font-mono">
                           From {stream.from.slice(0, 8)}...
                         </span>
                         <div className="flex items-center gap-3">
-                          <span className="text-cyan-400 text-sm">{stream.rate} APT{stream.rateUnit}</span>
-                          <button className="text-xs text-slate-500 hover:text-white px-2 py-1 rounded bg-white/[0.03] focus:outline-none">Receive</button>
+                          <span className="text-cyan-400 text-sm">
+                            {stream.rate} {stream.tokenSymbol}
+                            {stream.rateUnit}
+                          </span>
+                          <button className="text-xs text-slate-500 hover:text-white px-2 py-1 rounded bg-white/[0.03] focus:outline-none">
+                            Receive
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -173,16 +192,26 @@ function UserView() {
               {/* Outgoing Streams */}
               {dep.outgoing.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Outgoing Streams</p>
+                  <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">
+                    Outgoing Streams
+                  </p>
                   <div className="space-y-2">
                     {dep.outgoing.map((stream, j) => (
-                      <div key={j} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02]">
+                      <div
+                        key={j}
+                        className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02]"
+                      >
                         <span className="text-slate-400 text-sm font-mono">
                           To {stream.to.slice(0, 8)}...
                         </span>
                         <div className="flex items-center gap-3">
-                          <span className="text-white text-sm">{stream.rate} APT{stream.rateUnit}</span>
-                          <span className="text-slate-500 text-xs">{stream.durationText}</span>
+                          <span className="text-white text-sm">
+                            {stream.rate} {stream.tokenSymbol}
+                            {stream.rateUnit}
+                          </span>
+                          <span className="text-slate-500 text-xs">
+                            {stream.durationText}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -193,10 +222,15 @@ function UserView() {
               {/* Splits Config */}
               {dep.splits.length > 0 && (
                 <div>
-                  <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">Splits Config</p>
+                  <p className="text-slate-500 text-xs uppercase tracking-wider mb-2">
+                    Splits Config
+                  </p>
                   <div className="flex items-center gap-2 flex-wrap">
                     {dep.splits.map((split, j) => (
-                      <span key={j} className="px-3 py-1.5 rounded-full bg-white/[0.03] text-slate-400 text-xs">
+                      <span
+                        key={j}
+                        className="px-3 py-1.5 rounded-full bg-white/[0.03] text-slate-400 text-xs"
+                      >
                         {split.pct}% → {split.to.slice(0, 8)}...
                       </span>
                     ))}
@@ -208,9 +242,11 @@ function UserView() {
               )}
 
               {/* Empty state for no activity */}
-              {dep.incoming.length === 0 && dep.outgoing.length === 0 && dep.splits.length === 0 && (
-                <p className="text-slate-600 text-sm">No streams or splits configured</p>
-              )}
+              {dep.incoming.length === 0 &&
+                dep.outgoing.length === 0 &&
+                dep.splits.length === 0 && (
+                  <p className="text-slate-600 text-sm">No streams or splits configured</p>
+                )}
             </div>
           ))}
         </div>

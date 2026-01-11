@@ -1,5 +1,4 @@
-// Movement/Aptos event types
-
+// Movement event types
 export interface MovementEvent {
   version: string;
   sequence_number: string;
@@ -7,6 +6,8 @@ export interface MovementEvent {
   data: Record<string, unknown>;
   tx_hash?: string;
   timestamp?: string;
+  sender?: string; // Transaction sender address
+  entry_function?: string; // Entry function like "0x123::address_driver::set_streams"
   guid?: {
     creation_number: string;
     account_address: string;

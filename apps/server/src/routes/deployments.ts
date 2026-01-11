@@ -1,8 +1,14 @@
-import express from 'express';
-import { sql } from 'kysely';
-import { getDb } from '../database/connection.js';
-import { NotFoundError } from '../utils/errors.js';
-import { getTokenDecimals, formatRate, formatAmount, getTokenPrice, toUsd, formatUsd } from '../utils/token.js';
+import express from "express";
+import { sql } from "kysely";
+import { getDb } from "../database/connection.js";
+import { NotFoundError } from "../utils/errors.js";
+import {
+  formatAmount,
+  formatRate,
+  formatUsd,
+  getTokenDecimals,
+  toUsd,
+} from "../utils/token.js";
 
 // Format duration in seconds to human readable
 function formatDuration(seconds: number): string {
@@ -18,38 +24,40 @@ const router = express.Router();
 // Query params:
 //   ?limit=6 - max number to return (default 6, max 20)
 //   ?random=true - randomize order (default true)
-router.get('/', async (req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
     const db = getDb();
     const limit = Math.min(parseInt(req.query.limit as string) || 6, 20);
-    const random = req.query.random !== 'false'; // default true
+    const random = req.query.random !== "false"; // default true
 
-    let query = db.selectFrom('deployments').selectAll();
-    
+    let query = db.selectFrom("deployments").selectAll();
+
     if (random) {
       // SQLite/Turso RANDOM() for random ordering
       query = query.orderBy(sql`RANDOM()`);
     } else {
-      query = query.orderBy('first_seen_at', 'desc');
+      query = query.orderBy("first_seen_at", "desc");
     }
-    
+
     const deployments = await query.limit(limit).execute();
 
     // Get stats for each deployment
-    const response = await Promise.all(deployments.map(async (d) => {
-      const stats = await getDeploymentStats(d.address);
-      return {
-        address: d.address,
-        network: 'Movement Testnet',
-        firstSeenAt: d.first_seen_at,
-        volume: stats.totalVolume,
-        volumeUsd: stats.totalVolumeUsd,
-        tvl: stats.tvl,
-        tvlUsd: stats.tvlUsd,
-        streams: stats.activeStreams,
-        accounts: stats.totalAccounts,
-      };
-    }));
+    const response = await Promise.all(
+      deployments.map(async (d) => {
+        const stats = await getDeploymentStats(d.address);
+        return {
+          address: d.address,
+          network: "Movement Testnet",
+          firstSeenAt: d.first_seen_at,
+          volume: stats.totalVolume,
+          volumeUsd: stats.totalVolumeUsd,
+          tvl: stats.tvl,
+          tvlUsd: stats.tvlUsd,
+          streams: stats.activeStreams,
+          accounts: stats.totalAccounts,
+        };
+      })
+    );
 
     res.json(response);
   } catch (err) {
@@ -58,19 +66,19 @@ router.get('/', async (req, res, next) => {
 });
 
 // GET /deployments/:address - Single deployment with stats
-router.get('/:address', async (req, res, next) => {
+router.get("/:address", async (req, res, next) => {
   try {
     const db = getDb();
     const { address } = req.params;
 
     const deployment = await db
-      .selectFrom('deployments')
+      .selectFrom("deployments")
       .selectAll()
-      .where('address', '=', address)
+      .where("address", "=", address)
       .executeTakeFirst();
 
     if (!deployment) {
-      throw new NotFoundError('Deployment not found', { address });
+      throw new NotFoundError("Deployment not found", { address });
     }
 
     const stats = await getDeploymentStats(address);
@@ -86,7 +94,6 @@ router.get('/:address', async (req, res, next) => {
   }
 });
 
-
 interface DeploymentStats {
   totalAccounts: number;
   activeStreams: number;
@@ -101,27 +108,40 @@ interface DeploymentStats {
 async function getDeploymentStats(address: string): Promise<DeploymentStats> {
   const db = getDb();
   const [accounts, streams, splits, events] = await Promise.all([
-    db.selectFrom('accounts').select(db.fn.countAll().as('count'))
-      .where('deployment_address', '=', address).executeTakeFirst(),
-    db.selectFrom('streams').select(db.fn.countAll().as('count'))
-      .where('deployment_address', '=', address).where('active', '=', 1).executeTakeFirst(),
-    db.selectFrom('splits').select(db.fn.countAll().as('count'))
-      .where('deployment_address', '=', address).executeTakeFirst(),
-    db.selectFrom('events').select(db.fn.countAll().as('count'))
-      .where('deployment_address', '=', address).executeTakeFirst(),
+    db
+      .selectFrom("accounts")
+      .select(db.fn.countAll().as("count"))
+      .where("deployment_address", "=", address)
+      .executeTakeFirst(),
+    db
+      .selectFrom("streams")
+      .select(db.fn.countAll().as("count"))
+      .where("deployment_address", "=", address)
+      .where("active", "=", 1)
+      .executeTakeFirst(),
+    db
+      .selectFrom("splits")
+      .select(db.fn.countAll().as("count"))
+      .where("deployment_address", "=", address)
+      .executeTakeFirst(),
+    db
+      .selectFrom("events")
+      .select(db.fn.countAll().as("count"))
+      .where("deployment_address", "=", address)
+      .executeTakeFirst(),
   ]);
 
   // Calculate total volume from events (Given, Collected, StreamsSet deposits)
   const volumeEvents = await db
-    .selectFrom('events')
-    .select(['event_type', 'data'])
-    .where('deployment_address', '=', address)
-    .where('event_type', 'in', ['Given', 'Collected', 'Received', 'Squeezed'])
+    .selectFrom("events")
+    .select(["event_type", "data"])
+    .where("deployment_address", "=", address)
+    .where("event_type", "in", ["Given", "Collected", "Received", "Squeezed"])
     .execute();
 
   let totalVolumeRaw = 0n;
-  let faMetadata = '0xa'; // Default to APT
-  
+  let faMetadata = "0xa"; // Default native token address
+
   for (const e of volumeEvents) {
     try {
       const data = JSON.parse(e.data);
@@ -131,16 +151,18 @@ async function getDeploymentStats(address: string): Promise<DeploymentStats> {
       if (data.fa_metadata) {
         faMetadata = data.fa_metadata;
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
-  
+
   // Calculate TVL from active streams balances
   const streamsSetEvents = await db
-    .selectFrom('events')
-    .select(['data'])
-    .where('deployment_address', '=', address)
-    .where('event_type', '=', 'StreamsSet')
-    .orderBy('timestamp', 'desc')
+    .selectFrom("events")
+    .select(["data"])
+    .where("deployment_address", "=", address)
+    .where("event_type", "=", "StreamsSet")
+    .orderBy("timestamp", "desc")
     .execute();
 
   // Sum up latest balance per account
@@ -154,9 +176,11 @@ async function getDeploymentStats(address: string): Promise<DeploymentStats> {
           accountBalances.set(data.account_id, BigInt(data.balance));
         }
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
-  
+
   let tvlRaw = 0n;
   for (const balance of accountBalances.values()) {
     tvlRaw += balance;
@@ -165,7 +189,7 @@ async function getDeploymentStats(address: string): Promise<DeploymentStats> {
   const decimals = await getTokenDecimals(faMetadata);
   const totalVolume = formatAmount(totalVolumeRaw, decimals, 2);
   const tvl = formatAmount(tvlRaw, decimals, 2);
-  
+
   // Get USD values
   const volumeUsd = await toUsd(totalVolumeRaw, faMetadata, decimals);
   const tvlUsdValue = await toUsd(tvlRaw, faMetadata, decimals);
@@ -184,64 +208,71 @@ async function getDeploymentStats(address: string): Promise<DeploymentStats> {
 
 // GET /deployments/:address/streams - All streams in deployment
 // Returns data formatted for UI: from, to, rate, balance, days remaining
-router.get('/:address/streams', async (req, res, next) => {
+router.get("/:address/streams", async (req, res, next) => {
   try {
     const db = getDb();
     const { address } = req.params;
-    const activeOnly = req.query.active !== 'false';
+    const activeOnly = req.query.active !== "false";
 
     let query = db
-      .selectFrom('streams')
+      .selectFrom("streams")
       .selectAll()
-      .where('deployment_address', '=', address);
+      .where("deployment_address", "=", address);
 
     if (activeOnly) {
-      query = query.where('active', '=', 1);
+      query = query.where("active", "=", 1);
     }
 
     const streams = await query.execute();
 
     // Format for UI with dynamic decimals
-    const formatted = await Promise.all(streams.map(async (s) => {
-      const decimals = await getTokenDecimals(s.fa_metadata);
-      const rateInfo = formatRate(s.amt_per_sec, decimals);
-      
-      // Calculate timing info
-      const now = Math.floor(Date.now() / 1000);
-      // Use created_at timestamp if start_time is 0
-      const createdAtTs = s.created_at ? Math.floor(new Date(s.created_at).getTime() / 1000) : now;
-      const startTime = s.start_time || createdAtTs;
-      const endTime = s.duration > 0 ? startTime + s.duration : 0;
-      
-      let durationText: string;
-      if (!s.active) {
-        // Stopped stream - calculate how long it ran using updated_at as stop time
-        const stoppedAt = s.updated_at ? Math.floor(new Date(s.updated_at).getTime() / 1000) : now;
-        const ranFor = stoppedAt - startTime;
-        durationText = ranFor > 0 ? formatDuration(ranFor) + ' (stopped)' : 'stopped';
-      } else if (endTime > 0 && endTime > now) {
-        // Active with end time
-        durationText = formatDuration(endTime - now) + ' left';
-      } else {
-        // Ongoing (no end time) - show how long it's been running
-        const runningFor = now - startTime;
-        durationText = runningFor > 60 ? formatDuration(runningFor) + ' running' : 'ongoing';
-      }
+    const formatted = await Promise.all(
+      streams.map(async (s) => {
+        const decimals = await getTokenDecimals(s.fa_metadata);
+        const rateInfo = formatRate(s.amt_per_sec, decimals);
 
-      return {
-        from: s.sender_id,
-        to: s.receiver_id,
-        streamId: s.stream_id,
-        faMetadata: s.fa_metadata,
-        rate: rateInfo.value,
-        rateUnit: rateInfo.unit,
-        amtPerSec: s.amt_per_sec,
-        startTime: s.start_time,
-        duration: s.duration,
-        durationText,
-        active: s.active === 1,
-      };
-    }));
+        // Calculate timing info
+        const now = Math.floor(Date.now() / 1000);
+        // Use created_at timestamp if start_time is 0
+        const createdAtTs = s.created_at
+          ? Math.floor(new Date(s.created_at).getTime() / 1000)
+          : now;
+        const startTime = s.start_time || createdAtTs;
+        const endTime = s.duration > 0 ? startTime + s.duration : 0;
+
+        let durationText: string;
+        if (!s.active) {
+          // Stopped stream - calculate how long it ran using updated_at as stop time
+          const stoppedAt = s.updated_at
+            ? Math.floor(new Date(s.updated_at).getTime() / 1000)
+            : now;
+          const ranFor = stoppedAt - startTime;
+          durationText = ranFor > 0 ? formatDuration(ranFor) + " (stopped)" : "stopped";
+        } else if (endTime > 0 && endTime > now) {
+          // Active with end time
+          durationText = formatDuration(endTime - now) + " left";
+        } else {
+          // Ongoing (no end time) - show how long it's been running
+          const runningFor = now - startTime;
+          durationText =
+            runningFor > 60 ? formatDuration(runningFor) + " running" : "ongoing";
+        }
+
+        return {
+          from: s.sender_id,
+          to: s.receiver_id,
+          streamId: s.stream_id,
+          faMetadata: s.fa_metadata,
+          rate: rateInfo.value,
+          rateUnit: rateInfo.unit,
+          amtPerSec: s.amt_per_sec,
+          startTime: s.start_time,
+          duration: s.duration,
+          durationText,
+          active: s.active === 1,
+        };
+      })
+    );
 
     res.json(formatted);
   } catch (err) {
@@ -249,23 +280,22 @@ router.get('/:address/streams', async (req, res, next) => {
   }
 });
 
-
 // GET /deployments/:address/splits - All splits configs
 // Returns data formatted for UI: accountId, receivers with percentages
-router.get('/:address/splits', async (req, res, next) => {
+router.get("/:address/splits", async (req, res, next) => {
   try {
     const db = getDb();
     const { address } = req.params;
 
     const splits = await db
-      .selectFrom('splits')
+      .selectFrom("splits")
       .selectAll()
-      .where('deployment_address', '=', address)
+      .where("deployment_address", "=", address)
       .execute();
 
     // Group by account_id
     const grouped = new Map<string, Array<{ to: string; weight: number; pct: number }>>();
-    
+
     for (const s of splits) {
       if (!grouped.has(s.account_id)) {
         grouped.set(s.account_id, []);
@@ -292,29 +322,32 @@ router.get('/:address/splits', async (req, res, next) => {
 });
 
 // GET /deployments/:address/accounts - All accounts
-router.get('/:address/accounts', async (req, res, next) => {
+router.get("/:address/accounts", async (req, res, next) => {
   try {
     const db = getDb();
     const { address } = req.params;
 
     const accounts = await db
-      .selectFrom('accounts')
+      .selectFrom("accounts")
       .selectAll()
-      .where('deployment_address', '=', address)
+      .where("deployment_address", "=", address)
       .execute();
 
-    res.json(accounts.map(a => ({
-      accountId: a.account_id,
-      walletAddress: a.wallet_address,
-      driverType: a.driver_type,
-    })));
+    res.json(
+      accounts.map((a) => ({
+        accountId: a.account_id,
+        walletAddress: a.wallet_address,
+        driverType: a.driver_type,
+        driverName: a.driver_name, // Send actual driver name
+      }))
+    );
   } catch (err) {
     next(err);
   }
 });
 
 // GET /deployments/:address/events - Activity feed
-router.get('/:address/events', async (req, res, next) => {
+router.get("/:address/events", async (req, res, next) => {
   try {
     const db = getDb();
     const { address } = req.params;
@@ -322,63 +355,119 @@ router.get('/:address/events', async (req, res, next) => {
     const offset = parseInt(req.query.offset as string) || 0;
 
     const events = await db
-      .selectFrom('events')
+      .selectFrom("events")
       .selectAll()
-      .where('deployment_address', '=', address)
-      .orderBy('timestamp', 'desc')
+      .where("deployment_address", "=", address)
+      .orderBy("timestamp", "desc")
       .limit(limit)
       .offset(offset)
       .execute();
 
-    res.json(events.map(e => ({
-      id: e.id,
-      eventType: e.event_type,
-      accountId: e.account_id,
-      data: JSON.parse(e.data),
-      txHash: e.tx_hash,
-      timestamp: e.timestamp,
-    })));
+    // Extract all unique token addresses from events
+    const tokenAddresses = new Set<string>();
+    events.forEach((e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.fa_metadata) {
+          tokenAddresses.add(data.fa_metadata);
+        }
+      } catch {
+        /* skip */
+      }
+    });
+
+    // Fetch all token metadata in one query
+    const tokensData = await db
+      .selectFrom("tokens")
+      .selectAll()
+      .where("address", "in", Array.from(tokenAddresses))
+      .execute();
+
+    // Create a map for quick lookup
+    const tokensMap = new Map(
+      tokensData.map((t) => [t.address, { symbol: t.symbol, name: t.name }])
+    );
+
+    // Enrich events with token symbols (from DB, single query)
+    const enriched = events.map((e) => {
+      const data = JSON.parse(e.data);
+      let tokenSymbol = "TOKEN"; // Generic fallback
+
+      // Extract fa_metadata from event data if present
+      if (data.fa_metadata) {
+        const tokenMeta = tokensMap.get(data.fa_metadata);
+        tokenSymbol = tokenMeta?.symbol || "TOKEN";
+      }
+
+      return {
+        id: e.id,
+        eventType: e.event_type,
+        accountId: e.account_id,
+        data,
+        tokenSymbol,
+        txHash: e.tx_hash,
+        timestamp: e.timestamp,
+      };
+    });
+
+    res.json(enriched);
   } catch (err) {
     next(err);
   }
 });
 
 // GET /deployments/:address/vault - Token balances in the vault
-router.get('/:address/vault', async (req, res, next) => {
+router.get("/:address/vault", async (req, res, next) => {
   try {
     const db = getDb();
     const { address } = req.params;
 
     // Get all StreamsSet events to track balances per token
     const streamsSetEvents = await db
-      .selectFrom('events')
-      .select(['data'])
-      .where('deployment_address', '=', address)
-      .where('event_type', '=', 'StreamsSet')
-      .orderBy('timestamp', 'desc')
+      .selectFrom("events")
+      .select(["data"])
+      .where("deployment_address", "=", address)
+      .where("event_type", "=", "StreamsSet")
+      .orderBy("timestamp", "desc")
       .execute();
 
     // Track latest balance per account per token
     const tokenBalances = new Map<string, Map<string, bigint>>(); // token -> (account -> balance)
-    
+
     for (const e of streamsSetEvents) {
       try {
         const data = JSON.parse(e.data);
-        const token = data.fa_metadata || '0xa';
+        const token = data.fa_metadata || "0xa";
         const accountId = data.account_id;
-        const balance = BigInt(data.balance || '0');
-        
+        const balance = BigInt(data.balance || "0");
+
         if (!tokenBalances.has(token)) {
           tokenBalances.set(token, new Map());
         }
         const accountMap = tokenBalances.get(token)!;
-        
+
         // Only keep first (latest) balance per account
         if (!accountMap.has(accountId)) {
           accountMap.set(accountId, balance);
         }
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
+
+    // Aggregate per token
+    // First, get all unique token addresses
+    const tokenAddresses = Array.from(tokenBalances.keys());
+
+    // Fetch all token metadata in one query
+    const tokensData = await db
+      .selectFrom("tokens")
+      .selectAll()
+      .where("address", "in", tokenAddresses)
+      .execute();
+
+    // Create a map for quick lookup
+    const tokensMap = new Map(tokensData.map((t) => [t.address, t]));
 
     // Aggregate per token
     const vault = await Promise.all(
@@ -387,14 +476,15 @@ router.get('/:address/vault', async (req, res, next) => {
         for (const balance of accounts.values()) {
           totalRaw += balance;
         }
-        
-        const decimals = await getTokenDecimals(token);
+
+        // Get token metadata from map (already fetched)
+        const tokenMeta = tokensMap.get(token);
+        const symbol = tokenMeta?.symbol || "TOKEN";
+        const decimals = tokenMeta?.decimals || 8;
+
         const amount = formatAmount(totalRaw, decimals, 4);
         const usdValue = await toUsd(totalRaw, token, decimals);
-        
-        // Get token symbol (simplified - APT for now)
-        const symbol = token === '0xa' || token.endsWith('0a') ? 'APT' : 'TOKEN';
-        
+
         return {
           token,
           symbol,

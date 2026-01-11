@@ -1,14 +1,14 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 // Event types from contracts
 export type EventType =
-  | 'StreamsSet'
-  | 'SplitsSet'
-  | 'Given'
-  | 'Received'
-  | 'Squeezed'
-  | 'SplitExecuted'
-  | 'Collected';
+  | "StreamsSet"
+  | "SplitsSet"
+  | "Given"
+  | "Received"
+  | "Squeezed"
+  | "SplitExecuted"
+  | "Collected";
 
 // API Response types
 export interface DeploymentResponse {
@@ -74,7 +74,7 @@ export interface ErrorResponse {
 }
 
 // Validation schemas
-export const AddressSchema = z.string().regex(/^0x[a-fA-F0-9]+$/, 'Invalid hex address');
+export const AddressSchema = z.string().regex(/^0x[a-fA-F0-9]+$/, "Invalid hex address");
 
 export const PaginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),

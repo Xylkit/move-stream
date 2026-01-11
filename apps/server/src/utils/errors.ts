@@ -1,4 +1,4 @@
-import { ErrorResponse } from '../types/index.js';
+import { ErrorResponse } from "../types/index.js";
 
 export class AppError extends Error {
   constructor(
@@ -8,7 +8,7 @@ export class AppError extends Error {
     public details?: unknown
   ) {
     super(message);
-    this.name = 'AppError';
+    this.name = "AppError";
   }
 
   toJSON(): ErrorResponse {
@@ -22,12 +22,12 @@ export class AppError extends Error {
 
 export class NotFoundError extends AppError {
   constructor(message: string, details?: unknown) {
-    super(404, 'NotFound', message, details);
+    super(404, "NotFound", message, details);
   }
 }
 
 export class ValidationError extends AppError {
   constructor(message: string, details?: unknown) {
-    super(400, 'ValidationError', message, details);
+    super(400, "ValidationError", message, details);
   }
 }

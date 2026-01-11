@@ -1,15 +1,15 @@
 import { getDb } from "../database/connection.js";
-import { extractWalletAddress, getDriverType, getWalletAddress } from "../utils/account.js";
+import { getWalletAddress } from "../utils/account.js";
 import { ensureToken } from "../utils/token.js";
 import type {
-  MovementEvent,
-  StreamsSetEventData,
-  SplitsSetEventData,
-  GivenEventData,
-  ReceivedEventData,
-  SqueezedEventData,
-  SplitExecutedEventData,
   CollectedEventData,
+  GivenEventData,
+  MovementEvent,
+  ReceivedEventData,
+  SplitExecutedEventData,
+  SplitsSetEventData,
+  SqueezedEventData,
+  StreamsSetEventData,
 } from "./types.js";
 
 /**
@@ -142,31 +142,32 @@ async function ensureAccount(
     .executeTakeFirst();
 
   if (!existing) {
+    // Extract driver name from entry function (e.g., "address_driver", "nft_driver")
+    const driverName = extractDriverName(entryFunction);
+
     // Determine wallet address:
     // 1. If transaction sender matches this account ID, use sender address (most accurate)
     // 2. Otherwise, try to extract from account ID or query chain
     let walletAddress: string | null = null;
 
-    if (txSenderAddress) {
-      const driverType = getDriverType(accountId);
+    if (txSenderAddress && driverName?.includes("address")) {
       // For AddressDriver, check if sender's account ID matches
-      if (driverType === 1) {
-        const senderAccountId = await import("../utils/account.js").then((m) =>
-          m.calcAccountId(txSenderAddress)
-        );
-        if (senderAccountId.toString() === accountId) {
-          walletAddress = txSenderAddress; // Use full sender address
-        }
+      const senderAccountId = await import("../utils/account.js").then((m) =>
+        m.calcAccountId(txSenderAddress)
+      );
+      if (senderAccountId.toString() === accountId) {
+        walletAddress = txSenderAddress; // Use full sender address
       }
     }
 
     // Fallback to extraction/query if sender doesn't match
     if (!walletAddress) {
-      walletAddress = await getWalletAddress(deploymentAddress, accountId);
+      walletAddress = await getWalletAddress(deploymentAddress, accountId, driverName);
     }
 
-    // Extract driver name from entry function (e.g., "address_driver", "nft_driver")
-    const driverName = extractDriverName(entryFunction);
+    // Derive driver_type from driver_name
+    const { getDriverTypeFromName } = await import("../utils/account.js");
+    const driverType = getDriverTypeFromName(driverName);
 
     await db
       .insertInto("accounts")
@@ -174,8 +175,8 @@ async function ensureAccount(
         deployment_address: deploymentAddress,
         account_id: accountId,
         wallet_address: walletAddress,
-        driver_type: getDriverType(accountId),
-        driver_name: driverName, // Store driver name for accurate identification
+        driver_type: driverType, // Derived from driver_name
+        driver_name: driverName, // Source of truth
         created_at: now,
       })
       .execute();

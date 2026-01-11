@@ -64,10 +64,11 @@ Configure how received funds are distributed:
 
 ### Account IDs
 
-Each user has a 256-bit account ID:
+Each user has a 256-bit account ID that uniquely identifies them in the protocol:
 
-- Driver ID (32 bits) - which driver controls the account
-- Address/Token data (224 bits) - wallet address or NFT ID
+- **Address Driver**: Your wallet address converted directly to a 256-bit number. Simple and reversible — you can always recover the original address from the account ID.
+
+- **NFT Driver**: Combines the minter's address (160 bits) with a unique salt (64 bits). Each NFT represents a separate account that can be transferred to new owners.
 
 ## License
 

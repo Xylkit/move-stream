@@ -33,10 +33,6 @@ module xylkstream::drips {
     /// The total splits weight of an account (1_000_000 = 100%).
     const TOTAL_SPLITS_WEIGHT: u32 = 1_000_000;
 
-    /// The offset of the controlling driver ID in the account ID.
-    /// Account ID = driverId (32 bits) | driverCustomData (224 bits).
-    const DRIVER_ID_OFFSET: u8 = 224;
-
     /// The total amount the protocol can store of each token (u128 max).
     const MAX_TOTAL_BALANCE: u128 = 340282366920938463463374607431768211455;
 

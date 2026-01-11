@@ -8,67 +8,25 @@ module xylkstream::address_driver {
     use xylkstream::driver_transfer_utils;
     use movemate::i128;
 
-    // ═══════════════════════════════════════════════════════════════════════════════
-    //                                 CONSTANTS
-    // ═══════════════════════════════════════════════════════════════════════════════
 
-    const ADDRESS_DRIVER_ID: u32 = 1;
-    const DRIVER_ID_OFFSET: u8 = 224;
-    const ADDR_MASK: u256 =
-        0x00000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    //                                 ERROR CODES
-    // ═══════════════════════════════════════════════════════════════════════════════
-
-    /// Storage already initialized
-    const E_ALREADY_INITIALIZED: u64 = 100;
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    //                              STORAGE
-    // ═══════════════════════════════════════════════════════════════════════════════
-
-    /// Global storage for the address driver configuration.
-    struct AddressDriverStorage has key {
-        /// The driver ID assigned to this driver.
-        driver_id: u32
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    //                              INITIALIZATION
-    // ═══════════════════════════════════════════════════════════════════════════════
-
-    /// Initialize the address driver with the given driver ID.
-    /// Must be called once before using the driver.
-    ///
-    /// `deployer`: The deployer signer\
-    fun init_module(deployer: &signer) {
-        let addr = signer::address_of(deployer);
-        assert!(!exists<AddressDriverStorage>(addr), E_ALREADY_INITIALIZED);
-        move_to(deployer, AddressDriverStorage { driver_id: ADDRESS_DRIVER_ID });
-    }
 
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              ACCOUNT ID
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Calculates the account ID for an address.
-    /// Every account ID is a 256-bit integer constructed by concatenating:
-    /// `driverId (32 bits) | addr_lower (224 bits)`.
+    /// The account ID is simply the address converted to u256.
+    /// This allows easy recovery of the original address from the account ID.
     ///
     /// `addr`: The address to calculate the account ID for
     ///
     /// Returns: The account ID
-    public fun calc_account_id(addr: address): u256 acquires AddressDriverStorage {
-        let storage = borrow_global<AddressDriverStorage>(@xylkstream);
-        // Shift driver ID to upper 32 bits, OR with masked 224 bits of address
-        ((storage.driver_id as u256) << DRIVER_ID_OFFSET) | (
-            addr_to_u256(addr) & ADDR_MASK
-        )
+    public fun calc_account_id(addr: address): u256 {
+        addr_to_u256(addr)
     }
 
     /// Returns the account ID for the caller.
-    fun caller_account_id(caller: &signer): u256 acquires AddressDriverStorage {
+    fun caller_account_id(caller: &signer): u256 {
         calc_account_id(signer::address_of(caller))
     }
 
@@ -96,7 +54,7 @@ module xylkstream::address_driver {
     /// `transfer_to`: The address to send collected funds to
     public entry fun collect(
         caller: &signer, fa_metadata: address, transfer_to: address
-    ) acquires AddressDriverStorage {
+    ) {
         driver_transfer_utils::collect_and_transfer(
             caller_account_id(caller), fa_metadata, transfer_to
         );
@@ -115,7 +73,7 @@ module xylkstream::address_driver {
         receiver: u256,
         fa_metadata: address,
         amt: u128
-    ) acquires AddressDriverStorage {
+    ) {
         driver_transfer_utils::give_and_transfer(
             caller,
             caller_account_id(caller),
@@ -162,7 +120,7 @@ module xylkstream::address_driver {
         max_end_hint1: u64,
         max_end_hint2: u64,
         transfer_to: address
-    ) acquires AddressDriverStorage {
+    ) {
         let account_id = caller_account_id(caller);
         let curr_receivers =
             driver_utils::build_stream_receivers(
@@ -218,7 +176,7 @@ module xylkstream::address_driver {
     /// `receiver_weights`: The receivers' weights
     public entry fun set_splits(
         caller: &signer, receiver_account_ids: vector<u256>, receiver_weights: vector<u32>
-    ) acquires AddressDriverStorage {
+    ) {
         let account_id = caller_account_id(caller);
         let receivers =
             driver_utils::build_splits_receivers(
@@ -239,15 +197,9 @@ module xylkstream::address_driver {
         caller: &signer,
         keys: vector<vector<u8>>,
         values: vector<vector<u8>>
-    ) acquires AddressDriverStorage {
+    ) {
         let account_metadata = driver_utils::build_account_metadata(&keys, &values);
         drips::emit_account_metadata(caller_account_id(caller), account_metadata);
-    }
-
-    #[view]
-    /// Returns the driver ID assigned to this driver.
-    public fun driver_id(): u32 acquires AddressDriverStorage {
-        borrow_global<AddressDriverStorage>(@xylkstream).driver_id
     }
 }
 

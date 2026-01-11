@@ -89,10 +89,9 @@ const fail = (msg: string) => { console.log(`  ${c.red}✗ ${msg}${c.reset}`); r
 const calcAmtPerSec = (tokensPerSec: number, decimals = 8): bigint =>
   BigInt(Math.floor(tokensPerSec * 10 ** decimals)) * 1_000_000_000n;
 
-const calcAccountId = (addr: string, driverId = 1): bigint => {
-  const OFFSET = 224n;
-  const MASK = 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffn;
-  return (BigInt(driverId) << OFFSET) | (BigInt(addr) & MASK);
+const calcAccountId = (addr: string): bigint => {
+  // AddressDriver now uses full 256-bit address as account ID
+  return BigInt(addr);
 };
 
 const getWalletBalance = async (addr: string): Promise<bigint> => {

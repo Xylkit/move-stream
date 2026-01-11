@@ -18,9 +18,6 @@ module xylkstream::nft_driver {
     //                                 CONSTANTS
     // ═══════════════════════════════════════════════════════════════════════════════
 
-    const NFT_DRIVER_ID: u32 = 2;
-    const MINTER_MASK: u256 =
-        0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
     const COLLECTION_NAME: vector<u8> = b"Drips Identity";
     const COLLECTION_DESCRIPTION: vector<u8> = b"NFT-based identity for Drips protocol";
     const COLLECTION_URI: vector<u8> = b"";
@@ -44,8 +41,6 @@ module xylkstream::nft_driver {
 
     /// Global storage for the NFT driver configuration.
     struct NFTDriverStorage has key {
-        /// The driver ID assigned to this driver.
-        driver_id: u32,
         /// The number of tokens minted without salt.
         minted_tokens: u64,
         /// The salts already used for minting tokens: minter -> salt -> bool.
@@ -92,7 +87,6 @@ module xylkstream::nft_driver {
         move_to(
             deployer,
             NFTDriverStorage {
-                driver_id: NFT_DRIVER_ID,
                 minted_tokens: 0,
                 used_salts: smart_table::new(),
                 collection_extend_ref,
@@ -106,36 +100,31 @@ module xylkstream::nft_driver {
     // ═══════════════════════════════════════════════════════════════════════════════
 
     /// Get the ID of the next minted token (without salt).
-    /// Every token ID is a 256-bit integer constructed by concatenating:
-    /// `driverId (32 bits) | zeros (160 bits) | mintedTokensCounter (64 bits)`.
+    /// Token ID = minter (160 bits) | salt/counter (64 bits), with minter = 0x0 for sequential mints.
     ///
     /// Returns: The token ID (equal to the account ID controlled by it)
     public fun next_token_id(): u256 acquires NFTDriverStorage {
         let storage = borrow_global<NFTDriverStorage>(@xylkstream);
-        calc_token_id_with_salt_internal(storage.driver_id, @0x0, storage.minted_tokens)
+        calc_token_id_internal(@0x0, storage.minted_tokens)
     }
 
     /// Calculate the ID of the token minted with salt.
-    /// Every token ID is a 256-bit integer constructed by concatenating:
-    /// `driverId (32 bits) | minter (160 bits) | salt (64 bits)`.
+    /// Token ID = minter (160 bits) | salt (64 bits).
+    /// The minter's lower 160 bits are used to avoid collisions with address-based accounts.
     ///
     /// `minter`: The minter of the token\
     /// `salt`: The salt used for minting the token
     ///
     /// Returns: The token ID (equal to the account ID controlled by it)
-    public fun calc_token_id_with_salt(minter: address, salt: u64): u256 acquires NFTDriverStorage {
-        let storage = borrow_global<NFTDriverStorage>(@xylkstream);
-        calc_token_id_with_salt_internal(storage.driver_id, minter, salt)
+    public fun calc_token_id_with_salt(minter: address, salt: u64): u256 {
+        calc_token_id_internal(minter, salt)
     }
 
     /// Internal token ID calculation.
-    fun calc_token_id_with_salt_internal(
-        driver_id: u32, minter: address, salt: u64
-    ): u256 {
-        let token_id = (driver_id as u256);
-        token_id = (token_id << 160) | (addr_to_u256(minter) & MINTER_MASK);
-        token_id = (token_id << 64) | (salt as u256);
-        token_id
+    /// Uses lower 160 bits of minter address + 64 bit salt.
+    fun calc_token_id_internal(minter: address, salt: u64): u256 {
+        let minter_bits = addr_to_u256(minter) & 0x000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        (minter_bits << 64) | (salt as u256)
     }
 
     /// Converts an address to u256.
@@ -187,10 +176,7 @@ module xylkstream::nft_driver {
         let account_metadata =
             driver_utils::build_account_metadata(&metadata_keys, &metadata_values);
         let storage = borrow_global_mut<NFTDriverStorage>(@xylkstream);
-        let token_id =
-            calc_token_id_with_salt_internal(
-                storage.driver_id, @0x0, storage.minted_tokens
-            );
+        let token_id = calc_token_id_internal(@0x0, storage.minted_tokens);
         storage.minted_tokens += 1;
         mint_internal(caller, to, token_id, account_metadata);
     }
@@ -227,7 +213,7 @@ module xylkstream::nft_driver {
         let minter_salts = storage.used_salts.borrow_mut(minter);
         minter_salts.add(salt, true);
 
-        let token_id = calc_token_id_with_salt_internal(storage.driver_id, minter, salt);
+        let token_id = calc_token_id_internal(minter, salt);
         mint_internal(caller, to, token_id, account_metadata);
     }
 
@@ -509,11 +495,6 @@ module xylkstream::nft_driver {
     // ═══════════════════════════════════════════════════════════════════════════════
     //                              VIEW FUNCTIONS
     // ═══════════════════════════════════════════════════════════════════════════════
-
-    #[view]
-    public fun driver_id(): u32 acquires NFTDriverStorage {
-        borrow_global<NFTDriverStorage>(@xylkstream).driver_id
-    }
 
     #[view]
     /// Returns the number of tokens minted without salt.

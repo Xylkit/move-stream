@@ -365,27 +365,29 @@ public entry fun collect(
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Account IDs</h2>
         <p className="text-gray-300 mb-4">
-          Every account in Xylkit has a unique 256-bit account ID constructed by concatenating:
+          Every account in Xylkit has a unique 256-bit account ID. The format depends on the driver:
         </p>
         <ul className="list-disc list-inside text-gray-300 space-y-2 mb-6">
-          <li><strong>Driver ID (32 bits)</strong>: Identifies which driver manages this account</li>
-          <li><strong>Driver-specific data (224 bits)</strong>: Unique identifier within that driver's space</li>
+          <li><strong>AddressDriver</strong>: Your wallet address converted directly to a 256-bit number — simple and fully reversible</li>
+          <li><strong>NFTDriver</strong>: Combines the minter's address (160 bits) with a unique salt (64 bits)</li>
         </ul>
 
         <CodeBlock
           id="account-id-example"
           language="move"
           title="Account ID Structure"
-          code={`// Account ID = driverId (32 bits) | driverCustomData (224 bits)
-const DRIVER_ID_OFFSET: u8 = 224;
-
-// AddressDriver: uses wallet address as custom data
+          code={`// AddressDriver: address converted directly to u256
+// This allows easy recovery of the original address
 public fun calc_account_id(addr: address): u256 {
-    ((driver_id as u256) << DRIVER_ID_OFFSET) | (addr_to_u256(addr) & ADDR_MASK)
+    addr_to_u256(addr)
 }
 
-// NFTDriver: uses minter address + salt as custom data
-// token_id = driverId (32 bits) | minter (160 bits) | salt (64 bits)`}
+// NFTDriver: minter address (160 bits) | salt (64 bits)
+// Each minter can create unique accounts using different salts
+fun calc_token_id_internal(minter: address, salt: u64): u256 {
+    let minter_bits = addr_to_u256(minter) & MINTER_MASK;
+    (minter_bits << 64) | (salt as u256)
+}`}
         />
 
         <h2 className="text-2xl font-semibold mb-4 mt-8">Account Drivers</h2>
@@ -393,10 +395,11 @@ public fun calc_account_id(addr: address): u256 {
           Each driver is responsible for managing a range of account IDs and authenticating actions on those accounts.
         </p>
 
-        <h3 className="text-xl font-semibold mb-3 mt-6">AddressDriver (ID: 1)</h3>
+        <h3 className="text-xl font-semibold mb-3 mt-6">AddressDriver</h3>
         <p className="text-gray-300 mb-4">
           Enables each wallet address to manage a unique account in Xylkit. No registration required — 
-          any address can start using Xylkit immediately.
+          any address can start using Xylkit immediately. Your account ID is simply your address as a number,
+          making it easy to look up accounts and recover addresses from IDs.
         </p>
 
         <CodeBlock
@@ -404,7 +407,10 @@ public fun calc_account_id(addr: address): u256 {
           language="move"
           title="AddressDriver Usage"
           code={`module xylkstream::address_driver {
-    const ADDRESS_DRIVER_ID: u32 = 1;
+    /// Calculates account ID - just the address as u256
+    public fun calc_account_id(addr: address): u256 {
+        addr_to_u256(addr)
+    }
     
     /// Collects funds and transfers to specified address
     public entry fun collect(
@@ -433,10 +439,11 @@ public fun calc_account_id(addr: address): u256 {
 }`}
         />
 
-        <h3 className="text-xl font-semibold mb-3 mt-8">NFTDriver (ID: 2)</h3>
+        <h3 className="text-xl font-semibold mb-3 mt-8">NFTDriver</h3>
         <p className="text-gray-300 mb-4">
           Allows users to create unlimited NFT-based accounts, each with its own balance and streaming settings. 
-          Only the NFT holder can control the associated account.
+          Only the NFT holder can control the associated account. Token IDs combine the minter's address with a 
+          salt, ensuring uniqueness while allowing deterministic ID calculation.
         </p>
 
         <CodeBlock
@@ -444,7 +451,8 @@ public fun calc_account_id(addr: address): u256 {
           language="move"
           title="NFTDriver Usage"
           code={`module xylkstream::nft_driver {
-    const NFT_DRIVER_ID: u32 = 2;
+    /// Token ID = minter (160 bits) | salt (64 bits)
+    public fun calc_token_id_with_salt(minter: address, salt: u64): u256
     
     /// Mints a new token controlling a new account ID
     public entry fun mint(
@@ -480,6 +488,12 @@ public fun calc_account_id(addr: address): u256 {
             The driver model makes it straightforward to add new account types. Future drivers could enable 
             accounts controlled by multisigs, DAOs, or other on-chain entities. Each driver just needs to 
             implement the authentication logic and call into the core Xylkit modules.
+          </p>
+          <p className="text-gray-300 mt-2 text-sm">
+            <strong>Note for developers:</strong> When creating new drivers, carefully design your account ID 
+            structure to avoid collisions with existing drivers. AddressDriver uses full 256-bit addresses, 
+            while NFTDriver uses a 160-bit minter + 64-bit salt layout. New drivers should use distinct bit 
+            patterns or reserved ranges to ensure account IDs remain globally unique.
           </p>
         </div>
       </section>
